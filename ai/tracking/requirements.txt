@@ -1,0 +1,3 @@
+# Runtime for the IoU tracker is Python stdlib only.
+# pytest is required to run ai/tracking/tests.
+pytest>=8.0.0
