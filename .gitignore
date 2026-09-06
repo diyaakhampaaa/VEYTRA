@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Model weights (large files, never commit)
+ai/detection/weights/*.pt
+ai/detection/weights/*.pth
+
+# Env
+.env
+
+# OS
+.DS_Store
