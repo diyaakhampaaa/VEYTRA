@@ -37,22 +37,29 @@ def test_detect_returns_expected_contract_shape():
 
 
 def test_detect_detection_fields_match_contract():
-    """Each detection dict must have all required keys with correct types."""
+    """
+    Each detection dict, if present, must have all required keys with
+    correct types. A plain synthetic frame with no real vehicle content
+    may correctly produce zero detections once real models are running
+    (this differs from stub-era behavior, which always returned one fake
+    detection regardless of frame content) — so we don't assert a fixed
+    count, only that whatever comes back is contract-compliant.
+    """
     frame = make_frame()
     result = detect(frame, camera_id="C01", timestamp="2026-09-06T15:30:00", source="real")
 
-    assert len(result["detections"]) > 0
-    det = result["detections"][0]
+    assert isinstance(result["detections"], list)
 
     required_keys = {
         "vehicle_bbox", "vehicle_type", "vehicle_confidence",
         "vehicle_detector", "plate_bbox", "plate_confidence",
     }
-    assert required_keys.issubset(det.keys())
-    assert isinstance(det["vehicle_confidence"], float)
-    assert 0.0 <= det["vehicle_confidence"] <= 1.0
-    assert isinstance(det["plate_confidence"], float)
-    assert 0.0 <= det["plate_confidence"] <= 1.0
+    for det in result["detections"]:
+        assert required_keys.issubset(det.keys())
+        assert isinstance(det["vehicle_confidence"], float)
+        assert 0.0 <= det["vehicle_confidence"] <= 1.0
+        assert isinstance(det["plate_confidence"], float)
+        assert 0.0 <= det["plate_confidence"] <= 1.0
 
 
 def test_detect_handles_all_black_frame():

@@ -1,138 +1,145 @@
-Member 1 — Vehicle + Plate Detection
+markdown
+# Member 1 — Vehicle + Plate Detection
 
-Detection module for VEYTRA (SIH 2026, PS 26127). This is the DETECT stage
-of the pipeline:
+Detection module for VEYTRA (SIH 2026, PS 26127). This is the **DETECT** stage:
 
 DETECT -> READ -> TRACK -> MATCH (Re-ID) -> VERIFY -> CORRECT -> RECONSTRUCT -> ANALYZE -> VISUALIZE -> ALERT
+
 
 Turns a camera frame (real UVH-26 footage or a SUMO-simulated frame) into vehicle
 and license-plate bounding boxes, consumed downstream by Member 2 (OCR) and
 Member 3 (tracking).
 
-Current status
-Component	Status
-Module structure, contract, API, CLI, tests	Complete
-Vehicle detection (VehicleNet-Y26x)	Stubbed — see below
-Plate detection (fine-tuned YOLO)	Stubbed — see below
+## Current status
 
-Why stubbed: Perception365/VehicleNet-Y26x (https://huggingface.co/Perception365/VehicleNet-Y26x)
-is a gated Hugging Face model; access request is pending approval. The plate
-detector requires a YOLO model fine-tuned on an annotated plate-crop dataset,
-which has not been built yet. Both integration points are implemented behind
-the same function signatures they'll use once real weights are available —
-search detector.py for TODO(vehiclenet) and the plate-model equivalent to
-find the exact swap-in points. All other behavior (JSON contract, error
-handling, API, CLI, tests) is final and will not change when real models are
-plugged in.
+| Component | Status |
+|---|---|
+| Module structure, contract, API, CLI, tests | Complete |
+| Vehicle detection — VehicleNet-Y26x | **Real, integrated** (`ai/detection/weights/vehiclenet_y26x.pt`) |
+| Plate detection — fine-tuned YOLOv8n | **Real, integrated** (`ai/detection/weights/plate_yolo.pt`, mAP50=0.457) |
 
-Install
-bash
+Both models are live. `detector.py` still contains a stub fallback path for
+each (`STUB_VEHICLE_MODEL` / `STUB_PLATE_MODEL`) that activates automatically
+if the weight files are missing — this keeps tests/CI functional without the
+large binary weight files present, since those are gitignored and not
+committed.
+
+## Install
+
+```bash
 cd ai/detection
 python -m venv .venv
 source .venv/Scripts/activate
 pip install -r requirements.txt
-Weights
+```
 
-Once available, place model weight files here (both gitignored, never committed):
+## Weights
+
+Place model weight files here (gitignored, never committed):
 
 ai/detection/weights/vehiclenet_y26x.pt
 ai/detection/weights/plate_yolo.pt
 
-Paths are configurable via environment variables VEHICLE_WEIGHTS_PATH and
-PLATE_WEIGHTS_PATH if you need to point elsewhere.
 
-Usage
-As a Python function
-python
+Paths are configured via a `.env` file (gitignored, auto-loaded via
+`python-dotenv`):
+
+VEHICLE_WEIGHTS_PATH=weights/vehiclenet_y26x.pt
+PLATE_WEIGHTS_PATH=weights/plate_yolo.pt
+
+
+No manual export needed — `detector.py` calls `load_dotenv()` on import.
+
+## Usage
+
+### As a Python function
+```python
 from detector import detect
 import cv2
 
 frame = cv2.imread("path/to/frame.jpg")
 result = detect(frame, camera_id="C01", timestamp="2026-09-06T15:30:00", source="real")
-CLI
-bash
-python run_detection.py --image tests/sample_frames/sample1.jpg --camera-id C01 --source real
-HTTP API
-bash
+```
+
+### CLI
+```bash
+python run_detection.py --image tests/sample_frames/real_sample1.png --camera-id C01 --source real
+```
+
+### HTTP API
+```bash
 uvicorn api:app --reload
-
-Then in a separate terminal:
-
-bash
+```
+```bash
 curl -X POST "http://127.0.0.1:8000/detect" \
-  -F "image=@tests/sample_frames/sample1.jpg" \
+  -F "image=@tests/sample_frames/real_sample1.png" \
   -F "camera_id=C01" \
   -F "timestamp=2026-09-06T15:30:00" \
-  -F "source=simulated"
-
+  -F "source=real"
+```
 Or use the interactive docs at http://127.0.0.1:8000/docs
 
-Data contract
+## Data contract
 
-Input: an image frame plus camera_id (string), timestamp (ISO 8601
-string), source ("real" or "simulated").
+Input: image frame + camera_id (string), timestamp (ISO 8601 string),
+source ("real" or "simulated").
 
 Output:
-
-json
+```json
 {
   "camera_id": "C01",
   "timestamp": "2026-09-06T15:30:00",
   "source": "real",
   "detections": [
     {
-      "vehicle_bbox": [128, 96, 384, 288],
-      "vehicle_type": "car",
-      "vehicle_confidence": 0.9,
+      "vehicle_bbox": [167, 519, 343, 727],
+      "vehicle_type": "Two-wheeler",
+      "vehicle_confidence": 0.9507519602775574,
       "vehicle_detector": "VehicleNet-Y26x",
-      "plate_bbox": [217, 255, 293, 283],
-      "plate_confidence": 0.85
+      "plate_bbox": [222, 590, 273, 616],
+      "plate_confidence": 0.3819118142127991
     }
   ]
 }
+```
+If no plate is detected, plate_bbox is null and plate_confidence is 0.0 —
+keys always present, never omitted. vehicle_type is one of VehicleNet-Y26x's
+14 real classes (Hatchback, Sedan, SUV, MUV, Two-wheeler, Three-wheeler,
+Bus, Truck, LCV, Van, Bicycle, Tempo-traveller, and others), not a placeholder.
 
-If no plate is detected for a vehicle, plate_bbox is null and
-plate_confidence is 0.0 — the keys are always present, never omitted.
+## Model details
 
-Sample I/O
+**VehicleNet-Y26x** — YOLO26x fine-tuned on UVH-26-MV (IISc Bangalore,
+Indian traffic), 14 vehicle classes, mAP@50:95=0.666. Gated on Hugging Face
+(Perception365/VehicleNet-Y26x) — access was requested and approved during
+this project.
 
-Input: tests/sample_frames/sample1.jpg (640x480 test frame), called via CLI:
+**Plate detector** — Ultralytics YOLOv8n fine-tuned from scratch on ~45
+manually + auto-annotated plate crops, cropped from UVH-26 vehicle
+detections. Training: 50 epochs configured, stopped early via patience=15,
+best result at epoch 21, mAP50=0.457, mAP50-95=0.285. Known limitation:
+small training set (~45 labeled plates) — accuracy can likely be improved by
+annotating more UVH-26 image folders and retraining.
 
-bash
-python run_detection.py --image tests/sample_frames/sample1.jpg --camera-id C01 --source simulated
+## Testing
 
-Output:
-
-json
-{
-  "camera_id": "C01",
-  "timestamp": "2026-09-06T15:41:12.345678+00:00",
-  "source": "simulated",
-  "detections": [
-    {
-      "vehicle_bbox": [128, 96, 384, 288],
-      "vehicle_type": "car",
-      "vehicle_confidence": 0.9,
-      "vehicle_detector": "VehicleNet-Y26x",
-      "plate_bbox": [217, 255, 293, 283],
-      "plate_confidence": 0.85
-    }
-  ]
-}
-Testing
-bash
+```bash
 pytest tests/ -v
+```
+10/10 passing. Covers contract shape, all-black frame, low-light frame,
+blurry frame, partial-visibility/small frame, None input, zero-size array
+input, and a no-crash sweep across frame sizes. Tests pass identically
+whether real weights are present or the module is running on stub fallback.
 
-Covers: contract shape validation, all-black frame, low-light frame, blurry
-frame, partial-visibility/small frame, None input (corrupted image),
-zero-size array input, and a broad no-crash sweep across frame sizes/content.
-10/10 tests passing as of the last run.
+## Known operational gotchas
 
-Next steps
-Get Hugging Face access approved for Perception365/VehicleNet-Y26x,
-swap into detector.py at the TODO(vehiclenet) markers.
-Build the plate-crop dataset from UVH-26 + simulated frames, annotate in
-CVAT, fine-tune YOLO in Colab, export plate_yolo.pt into weights/.
-Re-run pytest tests/ and the CLI/API smoke tests against real weights to
-confirm output shape is unchanged, then update this README's Sample I/O
-section with real (non-stub) output.
+- Colab sessions reset frequently, wiping all in-memory variables and
+  downloaded files. Rebuild via the reference pipeline rather than
+  assuming prior state persists.
+- Environment variables set via `export` only apply to the terminal tab
+  they were run in, and only to processes started afterward — a
+  long-running `uvicorn` process locks in whatever env state existed at
+  launch. This is why the module uses a `.env` file + python-dotenv
+  instead of relying on manual exports.
+- Always confirm which git branch and working directory a terminal tab is
+  in before running commands.
