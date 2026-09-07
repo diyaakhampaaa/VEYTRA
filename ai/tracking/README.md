@@ -4,12 +4,13 @@ Tracking module for VEYTRA. This is the **TRACK** stage:
 
 DETECT -> READ -> **TRACK** -> MATCH (Re-ID) -> VERIFY -> CORRECT -> RECONSTRUCT -> ANALYZE -> VISUALIZE -> ALERT
 
-This package currently does **only** per-camera identity: it takes Member 1
-detection JSON and adds `local_track_id` using bounding-box IoU between
-consecutive frames.
+This package currently does per-camera identity (IoU `local_track_id`) and a
+**baseline appearance embedding** (normalized RGB histogram). The original
+image is never stored in tracking JSON; the caller must pass the same frame
+that was sent to Member 1 `detect()`.
 
-Not in this package yet: Re-ID, cross-camera matching, SUMO, trajectory
-reconstruction, or evaluation.
+Not in this package yet: neural Re-ID, cross-camera matching, SUMO,
+trajectory reconstruction, or evaluation.
 
 ## Input (Member 1 detection JSON)
 
@@ -53,6 +54,19 @@ from ai.tracking import track_sequence
 
 tracked_frames = track_sequence([frame1, frame2, frame3])
 ```
+
+## Re-ID baseline
+
+```python
+from ai.tracking import ReIDEmbedder, embed_tracked_frame
+
+vector = ReIDEmbedder().embed(frame, [x1, y1, x2, y2])  # list[float] | None
+with_embeddings = embed_tracked_frame(frame, tracked)
+```
+
+`embed_tracked_frame` copies tracker fields and adds `embedding` only on
+detections that already have a non-null `local_track_id`. Swap the histogram
+later by replacing `ReIDEmbedder.embed` (no torch / no weights in this baseline).
 
 ## Tests
 
