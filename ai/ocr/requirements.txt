@@ -1,0 +1,12 @@
+# Member 2 READ-stage OCR. Models are pretrained (PaddleOCR); nothing is trained here.
+# CPU wheel is the default. GPU: set VEYTRA_OCR_USE_GPU=1 and install a CUDA paddlepaddle build.
+
+paddlepaddle>=2.6.1,<3.0.0
+paddleocr>=2.7.3,<2.10.0
+opencv-python>=4.8.0,<6
+numpy>=1.24.0
+fastapi>=0.110.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9
+pytest>=8.0.0
+httpx>=0.27.0
