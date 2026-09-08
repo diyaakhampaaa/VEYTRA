@@ -16,16 +16,38 @@ original reading), and logs every decision for audit.
 | Suspicion detection, evidence search, scoring, correction, logging | Complete, tested |
 | FastAPI wrapper (`POST /verify`, `GET /verification-logs`) | Complete |
 | Async/background worker | Complete |
-| Camera network + event data | **Placeholder** (own test data) — real data pending Member 3 (see below) |
+| Integration with Member 3's real `verification_payloads()` output | Complete, tested (see below) |
+| Camera network + event data (`camera_network.py`, `fake_event_store.py`) | Standalone-testing placeholder only — real pipeline uses Member 3's evidence directly |
 
-## Known integration gap (flagged with the team)
+## Integration with Member 3 (RESOLVED)
 
-Member 3's current `matcher.py` rejects any cross-camera match where
-plate text differs (`reject_reason="plate_mismatch"`), before this
-module would ever see the event. This module's whole purpose is to
-handle exactly those plate-mismatch cases — this needs to be resolved
-with Member 3 so mismatched-but-plausible events reach `/verify`
-instead of being dropped upstream.
+Member 3's `matcher.py` previously rejected any cross-camera match where
+plate text differed, before this module ever saw it. **This is now fixed
+on their end.** Their `ai.tracking.integration.verification_payloads()`
+now surfaces exactly these plate-mismatch cases (with the supporting
+event, `reid_similarity`, and `match_score` attached) instead of
+discarding them.
+
+`integration.py` (new) consumes that real output directly:
+
+```python
+# Member 3's side (not this module):
+# from ai.tracking.integration import verification_payloads
+# payloads = verification_payloads(match_result)
+
+from ai.verification.integration import process_verification_payloads
+results = process_verification_payloads(payloads)  # list of correction results
+```
+
+Note: this module does NOT import `ai.tracking` directly, to stay
+independently testable per the spec -- whoever wires the pipeline
+together (Member 6, or a test) calls Member 3's function first and
+passes the plain-dict output into ours.
+
+For this real-data path, `evidence.py` / `camera_network.py` /
+`fake_event_store.py` are **no longer needed** -- Member 3's matcher
+already does the spatial-temporal evidence search upstream. Those three
+files are kept for standalone testing/demo of this module in isolation.
 
 ## Install
 
@@ -125,11 +147,12 @@ ai/verification/
   suspicion.py         # flags suspicious events (low confidence, neighbour disagreement)
   camera_network.py    # placeholder camera-connection graph (swap for Member 3's real one)
   fake_event_store.py  # placeholder event "database" (swap for real PostgreSQL query)
-  evidence.py           # finds nearby supporting events within a travel-time window
+  evidence.py           # finds nearby supporting events within a travel-time window (standalone/demo only)
   scoring.py            # combines plate similarity + reid_similarity + evidence count -> confidence
   correction.py         # decides correct/don't-correct, always preserves original_plate
   logger.py             # writes verification_logs audit trail
+  integration.py        # adapter for Member 3's real verification_payloads() output
   api.py                # FastAPI: POST /verify, GET /verification-logs
   worker.py             # async/background verification path
-  tests/                # pytest suite, incl. test_end_to_end.py (USP scenario)
+  tests/                # pytest suite, incl. test_end_to_end.py (USP scenario) and test_integration.py (real data)
 ```

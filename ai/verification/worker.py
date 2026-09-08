@@ -5,10 +5,6 @@ Runs verification in the BACKGROUND, so if evidence-search is slow
 (e.g. a real database query, or waiting on Member 3's Re-ID service),
 the main traffic-analytics pipeline keeps processing other events
 without waiting on us.
-
-This uses asyncio -- Python's built-in tool for "do this without
-freezing everything else." Redis is optional/for later, when this
-needs to run across multiple servers, not just one process.
 """
 
 import asyncio
@@ -19,15 +15,19 @@ from .correction import apply_correction
 from .logger import log_verification_decision
 
 
-async def verify_event_async(event: dict, reid_similarity: float | None = None) -> dict:
+async def verify_event_async(
+    event: dict,
+    reid_similarity: float | None = None,
+    evidence_search_fn=find_supporting_evidence,
+) -> dict:
     """
-    Same pipeline as api.py's /verify, but as an async function that
-    can run alongside other work instead of blocking it.
+    `evidence_search_fn` is pluggable (defaults to the real evidence
+    search) specifically so tests can substitute a deliberately SLOW
+    version and prove other events still get processed concurrently.
 
-    `await asyncio.sleep(0)` below simulates handing control back to
-    the event loop -- in the real system, this is where a slow database
-    query or network call to Member 3's service would naturally yield
-    control anyway.
+    `asyncio.to_thread` runs the (possibly slow/blocking) evidence
+    search in a background thread, so the main event loop stays free
+    to work on other events while this one is waiting.
     """
     verdict = check_suspicion(event)
     if not verdict["is_suspicious"]:
@@ -41,22 +41,16 @@ async def verify_event_async(event: dict, reid_similarity: float | None = None) 
             "reason": "Not flagged as suspicious",
         }
 
-    await asyncio.sleep(0)  # placeholder for a real slow I/O call (DB/network)
-    supporting = find_supporting_evidence(event)
-
-    await asyncio.sleep(0)
+    supporting = await asyncio.to_thread(evidence_search_fn, event)
     best = find_best_candidate(event.get("plate"), supporting, reid_similarity)
-
     result = apply_correction(event["event_id"], event.get("plate"), best, reid_similarity)
     log_verification_decision(result, original_confidence=event.get("ocr_confidence"))
     return result
 
 
-async def verify_many_events_async(events: list[dict]) -> list[dict]:
+async def verify_many_events_async(events: list[dict], evidence_search_fn=find_supporting_evidence) -> list[dict]:
     """
     Verifies multiple events CONCURRENTLY instead of one-by-one.
-    This is the actual proof that "verification doesn't block the
-    main pipeline" -- multiple events get processed in parallel.
     """
-    tasks = [verify_event_async(evt, evt.get("reid_similarity")) for evt in events]
+    tasks = [verify_event_async(evt, evt.get("reid_similarity"), evidence_search_fn) for evt in events]
     return await asyncio.gather(*tasks)

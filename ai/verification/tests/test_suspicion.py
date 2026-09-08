@@ -31,3 +31,31 @@ def test_missing_plate_does_not_crash():
     event = {"plate": None, "ocr_confidence": 0.5, "nearby_events": []}
     result = check_suspicion(event)
     assert isinstance(result["is_suspicious"], bool)
+
+def test_implausible_timing_is_flagged():
+    event = {
+        "camera_id": "C13",
+        "plate": "DL01AB1234",
+        "ocr_confidence": 0.95,
+        "timestamp": "2026-09-06T15:30:00",
+        "nearby_events": [
+            {"camera_id": "C14", "plate": "DL01AB1234", "timestamp": "2026-09-06T15:30:05"},
+        ],
+    }
+    result = check_suspicion(event)
+    assert result["is_suspicious"] is True
+    assert "implausible_timing" in result["reasons"]
+
+
+def test_plausible_timing_is_not_flagged():
+    event = {
+        "camera_id": "C13",
+        "plate": "DL01AB1234",
+        "ocr_confidence": 0.95,
+        "timestamp": "2026-09-06T15:30:00",
+        "nearby_events": [
+            {"camera_id": "C14", "plate": "DL01AB1234", "timestamp": "2026-09-06T15:31:30"},
+        ],
+    }
+    result = check_suspicion(event)
+    assert "implausible_timing" not in result["reasons"]

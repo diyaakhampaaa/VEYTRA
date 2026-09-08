@@ -64,6 +64,40 @@ def has_neighbour_disagreement(plate: Optional[str], nearby_events: list[dict]) 
 
     return False
 
+MIN_FEASIBLE_TRAVEL_FRACTION = 0.3
+
+
+def has_implausible_timing(camera_id, timestamp, nearby_events: list[dict]) -> bool:
+    """Rule 3: is the time gap between this event and a nearby camera's
+    sighting physically impossible (arrived impossibly fast)?"""
+    if not camera_id or not timestamp or not nearby_events:
+        return False
+
+    from datetime import datetime
+    from .camera_network import get_neighbour_cameras
+
+    neighbours = get_neighbour_cameras(camera_id)
+    if not neighbours:
+        return False
+
+    for event in nearby_events:
+        neighbour_camera = event.get("camera_id")
+        neighbour_timestamp = event.get("timestamp")
+        if neighbour_camera not in neighbours or not neighbour_timestamp:
+            continue
+
+        expected_seconds = neighbours[neighbour_camera]
+        try:
+            gap_seconds = abs(
+                (datetime.fromisoformat(neighbour_timestamp) - datetime.fromisoformat(timestamp)).total_seconds()
+            )
+        except (ValueError, TypeError):
+            continue
+
+        if gap_seconds < expected_seconds * MIN_FEASIBLE_TRAVEL_FRACTION:
+            return True
+
+    return False
 
 def check_suspicion(event: dict) -> dict:
     """
@@ -94,6 +128,10 @@ def check_suspicion(event: dict) -> dict:
 
     if has_neighbour_disagreement(event.get("plate"), event.get("nearby_events", [])):
         reasons.append("neighbour_disagreement")
+
+    if has_implausible_timing(event.get("camera_id"), event.get("timestamp"), event.get("nearby_events", [])):
+        reasons.append("implausible_timing")
+
 
     return {
         "is_suspicious": len(reasons) > 0,
