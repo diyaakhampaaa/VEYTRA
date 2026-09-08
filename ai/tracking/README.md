@@ -9,8 +9,10 @@ This package currently does per-camera identity (IoU `local_track_id`) and a
 image is never stored in tracking JSON; the caller must pass the same frame
 that was sent to Member 1 `detect()`.
 
-Not in this package yet: neural Re-ID, cross-camera matching, SUMO,
-trajectory reconstruction, or evaluation.
+Cross-camera matching is included as a deterministic baseline. Trajectory
+reconstruction is also included. The integration adapter consumes Member 1's
+detection JSON after tracking/Re-ID and accepts Member 2's exact OCR fields
+(`plate`, `confidence`, `alternatives`).
 
 ## Input (Member 1 detection JSON)
 
@@ -81,3 +83,68 @@ python -m pytest ai/tracking/tests -v
 `PerCameraTracker` depends on an associator with `associate(track_bboxes, detection_bboxes)`.
 `IoUAssociator` is the default. A ByteTrack/Kalman associator can be passed as
 `associator=` without changing the JSON contract.
+
+
+## Member 1 + Member 2 integration
+
+Member 3 does not replace upstream modules. It consumes their contracts.
+
+```python
+from ai.tracking import (
+    PerCameraTracker,
+    ReIDEmbedder,
+    track_and_enrich_frame,
+    match_tracked_frames,
+    verification_payloads,
+)
+
+tracker = PerCameraTracker()
+embedder = ReIDEmbedder()
+
+# detection_result is the JSON returned by Member 1 `ai.detection.detect()`.
+tracked = track_and_enrich_frame(detection_result, frame, tracker, embedder)
+
+# Repeat for frames from all cameras, then:
+match_result = match_tracked_frames(all_tracked_frames)
+```
+
+Each detection may carry Member 2's exact OCR output:
+
+```json
+{
+  "plate": "DL01AB1234",
+  "confidence": 0.94,
+  "alternatives": ["DL01AB1284"]
+}
+```
+
+`prepare_track_records()` converts those per-frame records into camera-local
+completed tracks for the matcher. The selected `plate_text` is the
+highest-confidence OCR read and `plate_history` retains all reads; Member 3
+does not silently overwrite OCR history.
+
+## Plate mismatch -> VERIFY integration
+
+A different plate at two cameras is no longer discarded before verification.
+If time, spatial feasibility, and appearance make the pair plausible,
+`matcher.match()` keeps it out of the identity `matches` list **but** exposes
+it in `verification_candidates`.
+
+```python
+payloads = verification_payloads(match_result)
+```
+
+Each payload contains a Member 4-compatible suspicious event plus a
+`nearby_events` supporting read. The lower-confidence OCR observation is
+selected as the suspicious event, while both original plate readings are
+preserved.
+
+This deliberately separates responsibilities:
+
+`MATCH` = "these observations are plausibly the same vehicle"
+
+`VERIFY/CORRECT` = "the plate disagreement is real OCR error and should be
+corrected"
+
+A plate mismatch is therefore **not** treated as proof of identity, and
+ground truth is never used by Member 3.

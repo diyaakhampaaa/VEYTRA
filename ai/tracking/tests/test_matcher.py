@@ -152,7 +152,12 @@ def test_plate_mismatch_veto():
 
     assert score["accepted"] is False
     assert score["reject_reason"] == "plate_mismatch"
+    assert score["verification_eligible"] is True
     assert result["tracks"][0]["vehicle_id"] != result["tracks"][1]["vehicle_id"]
+    assert len(result["verification_candidates"]) == 1
+    candidate = result["verification_candidates"][0]
+    assert candidate["event"]["plate"] == "DL01AB1234"
+    assert candidate["supporting_event"]["plate"] == "MH02CD9999"
 
 
 def test_invalid_input():
@@ -187,3 +192,19 @@ def test_transitivity_assigns_same_vehicle_id():
     ids = {row["vehicle_id"] for row in result["tracks"]}
     assert ids == {"V001"}
     assert len(result["matches"]) >= 2
+
+
+def test_member2_ocr_field_names_are_accepted():
+    matcher = CrossCameraMatcher()
+    tracks = [
+        _track("C01", 1, T0, T1, embedding=SAME_VEC, plate_text=None),
+        _track("C02", 2, T2, T3, embedding=SAME_VEC),
+    ]
+    tracks[0]["plate"] = "DL01AB1234"
+    tracks[0]["confidence"] = 0.61
+    tracks[1]["plate"] = "DL01AB1234"
+    tracks[1]["confidence"] = 0.95
+
+    score = matcher.score_pair(tracks[0], tracks[1])
+    assert score["accepted"] is True
+    assert score["plate"] == 1.0
