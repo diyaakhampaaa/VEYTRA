@@ -110,7 +110,7 @@ def _deskew(gray: np.ndarray) -> np.ndarray:
         if abs(angle) < 1.5 or abs(angle) > 35:
             return gray
         h, w = gray.shape[:2]
-        matrix = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), angle, 1.0)
+        matrix = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), -angle, 1.0)
         return cv2.warpAffine(
             gray,
             matrix,
