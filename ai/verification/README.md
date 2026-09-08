@@ -129,16 +129,29 @@ Output: exact shape shown above. If no correction is made,
 
 ## Testing
 
+## Suspicion rules (all three from the spec)
+
+1. **Low OCR confidence** — below a configurable threshold.
+2. **Neighbouring camera disagreement** — fuzzy-matched plate text differs
+   meaningfully from a nearby camera's reading.
+3. **Implausible timing** — the gap between two sightings is too short to
+   be physically possible for the known distance between cameras.
+
+## Testing
+
 ```bash
 pytest ai/verification/tests/ -v
 ```
-10/10 passing. Covers: clean events, low-confidence flagging, neighbour
-disagreement (independent of confidence), missing plate data, scoring
+19/19 passing. Covers: all three suspicion rules independently, scoring
 with/without `reid_similarity` (confidence-ceiling fallback), conflicting
-evidence resolution, no-evidence handling, and the full USP scenario
-(wrong plate at one camera, correct at two neighbours -> caught,
-corrected, logged) plus a negative case (lone vehicle, no evidence ->
-never force-corrected).
+evidence resolution, no-evidence handling, the full USP scenario (wrong
+plate at one camera, correct at two neighbours -> caught, corrected,
+logged), a negative case (lone vehicle / genuinely different vehicle ->
+never force-corrected), Member 3's real `verification_payloads()` data
+shape, the actual `/verify` and `/verification-logs` HTTP endpoints
+(not just the underlying functions), and a timed concurrency test
+proving verification does NOT block the main pipeline even when
+evidence-search is deliberately slowed down.
 
 ## Files
 
@@ -154,5 +167,5 @@ ai/verification/
   integration.py        # adapter for Member 3's real verification_payloads() output
   api.py                # FastAPI: POST /verify, GET /verification-logs
   worker.py             # async/background verification path
-  tests/                # pytest suite, incl. test_end_to_end.py (USP scenario) and test_integration.py (real data)
+  tests/                # pytest suite, incl. test_end_to_end.py (USP scenario) and test_integration.py (real data) test_worker.py (non-blocking proof),     test_api.py (HTTP endpoints)
 ```
