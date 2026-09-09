@@ -1,3 +1,4 @@
+
 # Python
 __pycache__/
 *.pyc
@@ -5,8 +6,7 @@ __pycache__/
 venv/
 
 # Model weights (large files, never commit)
-ai/detection/weights/*.pt
-ai/detection/weights/*.pth
+
 
 # Env
 .env
