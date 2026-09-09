@@ -11,9 +11,12 @@ import pandas as pd
 
 from analytics.bottlenecks import compute_bottlenecks
 from analytics.congestion import compute_congestion
+from analytics.density import compute_density
 from analytics.io import load_vehicle_events
-
-EARTH_RADIUS_KM = 6371.0
+from analytics.od_matrix import compute_od_matrix
+from analytics.density_geojson import density_to_geojson
+from analytics.od_geojson import od_to_geojson
+from analytics.roads_geojson import roads_to_geojson
 
 
 def _empty_feature_collection() -> dict[str, Any]:
@@ -53,14 +56,20 @@ def _line_feature(
 
 
 def _clean_value(value: Any) -> Any:
-    if pd.isna(value):
+    if value is None:
         return None
 
-    if hasattr(value, "item"):
-        return value.item()
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
 
     if isinstance(value, pd.Timestamp):
         return value.isoformat()
+
+    if hasattr(value, "item"):
+        return value.item()
 
     return value
 
@@ -74,28 +83,20 @@ def _clean_properties(properties: dict[str, Any]) -> dict[str, Any]:
 
 def cameras_geojson(events: pd.DataFrame) -> dict[str, Any]:
     """Create camera point features."""
-    if events.empty:
-        return _empty_feature_collection()
-
     required = {"camera_id", "latitude", "longitude"}
 
-    if not required.issubset(events.columns):
+    if events.empty or not required.issubset(events.columns):
         return _empty_feature_collection()
 
     work = events.copy()
 
-    work["latitude"] = pd.to_numeric(
-        work["latitude"],
-        errors="coerce",
-    )
-    work["longitude"] = pd.to_numeric(
-        work["longitude"],
-        errors="coerce",
-    )
+    work["latitude"] = pd.to_numeric(work["latitude"], errors="coerce")
+    work["longitude"] = pd.to_numeric(work["longitude"], errors="coerce")
 
-    work = work.dropna(
-        subset=["camera_id", "latitude", "longitude"]
-    ).drop_duplicates("camera_id")
+    work = (
+        work.dropna(subset=["camera_id", "latitude", "longitude"])
+        .drop_duplicates("camera_id")
+    )
 
     features = []
 
@@ -104,11 +105,13 @@ def cameras_geojson(events: pd.DataFrame) -> dict[str, Any]:
             _point_feature(
                 longitude=float(row["longitude"]),
                 latitude=float(row["latitude"]),
-                properties={
-                    "camera_id": row["camera_id"],
-                    "road_segment_id": row.get("road_segment_id"),
-                    "road_name": row.get("road_name"),
-                },
+                properties=_clean_properties(
+                    {
+                        "camera_id": row["camera_id"],
+                        "road_segment_id": row.get("road_segment_id"),
+                        "road_name": row.get("road_name"),
+                    }
+                ),
             )
         )
 
@@ -139,25 +142,22 @@ def trajectories_geojson(events: pd.DataFrame) -> dict[str, Any]:
         work["timestamp"],
         errors="coerce",
     )
-    work["latitude"] = pd.to_numeric(
-        work["latitude"],
-        errors="coerce",
-    )
-    work["longitude"] = pd.to_numeric(
-        work["longitude"],
-        errors="coerce",
-    )
+    work["latitude"] = pd.to_numeric(work["latitude"], errors="coerce")
+    work["longitude"] = pd.to_numeric(work["longitude"], errors="coerce")
 
-    work = work.dropna(
-        subset=[
-            "vehicle_id",
-            "trajectory_id",
-            "timestamp",
-            "latitude",
-            "longitude",
-        ]
-    ).sort_values(
-        ["vehicle_id", "trajectory_id", "timestamp"]
+    work = (
+        work.dropna(
+            subset=[
+                "vehicle_id",
+                "trajectory_id",
+                "timestamp",
+                "latitude",
+                "longitude",
+            ]
+        )
+        .sort_values(
+            ["vehicle_id", "trajectory_id", "timestamp"]
+        )
     )
 
     features = []
@@ -191,14 +191,99 @@ def trajectories_geojson(events: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def _segment_locations(events: pd.DataFrame) -> pd.DataFrame:
+    """Return one representative location for each road segment."""
+    required = {
+        "road_segment_id",
+        "latitude",
+        "longitude",
+    }
+
+    if not required.issubset(events.columns):
+        return pd.DataFrame()
+
+    locations = events.copy()
+    locations["latitude"] = pd.to_numeric(
+        locations["latitude"],
+        errors="coerce",
+    )
+    locations["longitude"] = pd.to_numeric(
+        locations["longitude"],
+        errors="coerce",
+    )
+
+    return (
+        locations.dropna(
+            subset=[
+                "road_segment_id",
+                "latitude",
+                "longitude",
+            ]
+        )
+        .groupby("road_segment_id")
+        .agg(
+            latitude=("latitude", "mean"),
+            longitude=("longitude", "mean"),
+            road_name=("road_name", "first")
+            if "road_name" in locations.columns
+            else ("road_segment_id", "first"),
+        )
+        .reset_index()
+        .rename(columns={"road_segment_id": "segment_id"})
+    )
+
+
+def density_geojson(
+    events: pd.DataFrame,
+    window: str | int = "15min",
+) -> dict[str, Any]:
+    """Create heatmap-ready density points."""
+    required = {
+        "road_segment_id",
+        "latitude",
+        "longitude",
+    }
+
+    if events.empty or not required.issubset(events.columns):
+        return _empty_feature_collection()
+
+    density_result = compute_density(
+        events,
+        window=window,
+        as_json=False,
+    )
+
+    density = density_result["by_segment"]
+
+    if density.empty:
+        return _empty_feature_collection()
+
+    locations = _segment_locations(events)
+
+    if locations.empty:
+        return _empty_feature_collection()
+
+    density = density.rename(
+        columns={
+            "road_segment_id": "segment_id",
+            "unique_vehicles": "vehicle_count",
+        }
+    )
+
+    merged = density.merge(
+        locations,
+        on="segment_id",
+        how="left",
+    )
+
+    return density_to_geojson(merged)
+
+
 def congestion_geojson(
     events: pd.DataFrame,
     window: str | int = "15min",
 ) -> dict[str, Any]:
-    """Create point features representing congested road segments.
-
-    The point is the average observed location of each road segment.
-    """
+    """Create point features representing congested road segments."""
     required = {
         "road_segment_id",
         "latitude",
@@ -217,31 +302,13 @@ def congestion_geojson(
     if congestion.empty:
         return _empty_feature_collection()
 
-    locations = events.copy()
+    locations = _segment_locations(events)
 
-    locations["latitude"] = pd.to_numeric(
-        locations["latitude"],
-        errors="coerce",
-    )
-    locations["longitude"] = pd.to_numeric(
-        locations["longitude"],
-        errors="coerce",
-    )
+    if locations.empty:
+        return _empty_feature_collection()
 
-    locations = (
-        locations.dropna(
-            subset=[
-                "road_segment_id",
-                "latitude",
-                "longitude",
-            ]
-        )
-        .groupby("road_segment_id")
-        .agg(
-            latitude=("latitude", "mean"),
-            longitude=("longitude", "mean"),
-        )
-        .reset_index()
+    locations = locations.rename(
+        columns={"segment_id": "road_segment_id"}
     )
 
     summary = (
@@ -274,7 +341,7 @@ def congestion_geojson(
                 properties=_clean_properties(
                     {
                         "road_segment_id": row["road_segment_id"],
-                        "road_name": row["road_name"],
+                        "road_name": row.get("road_name"),
                         "congestion_score": row["congestion_score"],
                         "vehicle_count": row["vehicle_count"],
                         "average_speed_kmh": row["average_speed_kmh"],
@@ -313,31 +380,13 @@ def bottlenecks_geojson(
     if bottlenecks.empty:
         return _empty_feature_collection()
 
-    locations = events.copy()
+    locations = _segment_locations(events)
 
-    locations["latitude"] = pd.to_numeric(
-        locations["latitude"],
-        errors="coerce",
-    )
-    locations["longitude"] = pd.to_numeric(
-        locations["longitude"],
-        errors="coerce",
-    )
+    if locations.empty:
+        return _empty_feature_collection()
 
-    locations = (
-        locations.dropna(
-            subset=[
-                "road_segment_id",
-                "latitude",
-                "longitude",
-            ]
-        )
-        .groupby("road_segment_id")
-        .agg(
-            latitude=("latitude", "mean"),
-            longitude=("longitude", "mean"),
-        )
-        .reset_index()
+    locations = locations.rename(
+        columns={"segment_id": "road_segment_id"}
     )
 
     merged = bottlenecks.merge(
@@ -378,6 +427,53 @@ def bottlenecks_geojson(
     }
 
 
+def od_flows_geojson(events: pd.DataFrame) -> dict[str, Any]:
+    """Create OD-flow LineStrings between origin and destination cameras."""
+    if events.empty:
+        return _empty_feature_collection()
+
+    required = {
+        "vehicle_id",
+        "camera_id",
+        "timestamp",
+        "latitude",
+        "longitude",
+    }
+
+    if not required.issubset(events.columns):
+        return _empty_feature_collection()
+
+    od_data = compute_od_matrix(events, as_json=False)
+
+    if isinstance(od_data, dict):
+        od_data = od_data.get("od_matrix", pd.DataFrame())
+
+    if od_data is None or od_data.empty:
+        return _empty_feature_collection()
+
+    camera_locations = (
+        events[
+            ["camera_id", "latitude", "longitude"]
+        ]
+        .drop_duplicates("camera_id")
+    )
+
+    return od_to_geojson(
+        od_data=od_data,
+        camera_locations=camera_locations,
+    )
+
+
+def roads_geojson(events: pd.DataFrame) -> dict[str, Any]:
+    """Create road-segment layers from observed road locations."""
+    locations = _segment_locations(events)
+
+    if locations.empty:
+        return _empty_feature_collection()
+
+    return roads_to_geojson(locations)
+
+
 def export_geojson(
     layers: dict[str, dict[str, Any]],
     output_directory: str | Path = "analytics/output",
@@ -396,6 +492,7 @@ def export_geojson(
                 geojson,
                 file,
                 indent=2,
+                default=str,
             )
 
         paths.append(path)
@@ -410,9 +507,12 @@ def build_geo_layers(
     """Build all GIS-ready layers."""
     return {
         "cameras": cameras_geojson(events),
+        "density": density_geojson(events, window),
         "trajectories": trajectories_geojson(events),
         "congestion": congestion_geojson(events, window),
         "bottlenecks": bottlenecks_geojson(events, window),
+        "od_flows": od_flows_geojson(events),
+        "roads": roads_geojson(events),
     }
 
 
