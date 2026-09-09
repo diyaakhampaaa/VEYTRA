@@ -44,3 +44,17 @@ class VehicleCameraEvent(Base):
 
     timestamp = Column(String, nullable=False)
     direction = Column(String, nullable=True)
+
+class DetectionEvent(Base):
+    __tablename__ = "detection_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    camera_id = Column(String, nullable=False)
+    timestamp = Column(String, nullable=False)
+    source = Column(String, nullable=False)
+
+    vehicle_type = Column(String, nullable=True)
+    vehicle_confidence = Column(Float, nullable=True)
+
+    plate = Column(String, nullable=True)
+    plate_confidence = Column(Float, nullable=True) 

@@ -1,0 +1,5 @@
+# Tracker runtime is Python stdlib only.
+# Re-ID baseline needs numpy for ndarray frames / histograms.
+numpy>=1.26.0
+# pytest is required to run ai/tracking/tests.
+pytest>=8.0.0
