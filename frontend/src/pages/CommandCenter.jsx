@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react"
 import SourceBadge from "../components/SourceBadge"
 import MapView from "../components/MapView"
-import { checkBackend, getCameras } from "../api/client"
+import {
+  checkBackend,
+  getCameras,
+  getAnalytics,
+} from "../api/client"
 
 function CommandCenter() {
   const [backendStatus, setBackendStatus] = useState("Checking...")
   const [cameras, setCameras] = useState([])
+  const [analytics, setAnalytics] = useState([])
 
   useEffect(() => {
     checkBackend()
@@ -19,6 +24,14 @@ function CommandCenter() {
       .catch((error) => {
         console.error("Camera fetch error:", error)
       })
+
+    getAnalytics()
+      .then((data) => {
+        setAnalytics(data.segments)
+      })
+      .catch((error) => {
+        console.error("Analytics fetch error:", error)
+      })
   }, [])
 
   const totalVehicles = cameras.reduce(
@@ -29,6 +42,18 @@ function CommandCenter() {
   const activeCameras = cameras.filter(
     (camera) => camera.status === "Active"
   ).length
+
+  const averageCongestion =
+    analytics.length > 0
+      ? analytics.reduce(
+          (total, segment) => total + segment.congestion_score,
+          0
+        ) / analytics.length
+      : 0
+
+  const congestionPercentage = Math.round(
+    averageCongestion * 100
+  )
 
   return (
     <div>
@@ -65,7 +90,7 @@ function CommandCenter() {
 
       {/* Summary Cards */}
 
-      <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-4">
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
           <p className="text-sm text-slate-400">
             Active Cameras
@@ -83,6 +108,16 @@ function CommandCenter() {
 
           <p className="mt-2 text-3xl font-semibold">
             {totalVehicles}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <p className="text-sm text-slate-400">
+            Avg. Congestion
+          </p>
+
+          <p className="mt-2 text-3xl font-semibold">
+            {congestionPercentage}%
           </p>
         </div>
 

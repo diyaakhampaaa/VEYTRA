@@ -1,5 +1,6 @@
 import { useState } from "react"
 import SourceBadge from "../components/SourceBadge"
+import MatchScoreBreakdown from "../components/MatchScoreBreakdown"
 import { searchVehicle } from "../api/client"
 
 function VehicleSearch() {
@@ -114,15 +115,23 @@ function VehicleSearch() {
               Camera Journey
             </p>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {vehicle.camera_sequence.map((camera, index) => (
                 <div
-                  key={camera}
+                  key={camera.camera_id}
                   className="flex items-center gap-3"
                 >
                   <div className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-3">
                     <p className="font-medium">
-                      {camera}
+                      {camera.camera_id}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-400">
+                      {camera.timestamp}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Direction: {camera.direction}
                     </p>
                   </div>
 
@@ -136,56 +145,10 @@ function VehicleSearch() {
             </div>
           </div>
 
-          {/* Match Scores */}
-          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <div className="rounded-lg bg-slate-800 p-4">
-              <p className="text-xs text-slate-400">
-                Re-ID Similarity
-              </p>
-
-              <p className="mt-1 text-xl font-semibold">
-                {Math.round(
-                  vehicle.match_score.reid_similarity * 100
-                )}%
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-slate-800 p-4">
-              <p className="text-xs text-slate-400">
-                Plate Similarity
-              </p>
-
-              <p className="mt-1 text-xl font-semibold">
-                {Math.round(
-                  vehicle.match_score.plate_similarity * 100
-                )}%
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-slate-800 p-4">
-              <p className="text-xs text-slate-400">
-                Temporal Score
-              </p>
-
-              <p className="mt-1 text-xl font-semibold">
-                {Math.round(
-                  vehicle.match_score.temporal_score * 100
-                )}%
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-slate-800 p-4">
-              <p className="text-xs text-slate-400">
-                Route Score
-              </p>
-
-              <p className="mt-1 text-xl font-semibold">
-                {Math.round(
-                  vehicle.match_score.route_score * 100
-                )}%
-              </p>
-            </div>
-          </div>
+          {/* Match Score Breakdown */}
+          <MatchScoreBreakdown
+            matchScore={vehicle.match_score}
+          />
         </div>
       )}
     </div>

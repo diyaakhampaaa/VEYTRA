@@ -5,6 +5,7 @@ import { getAlerts } from "../api/client"
 function Alerts() {
   const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [filter, setFilter] = useState("All")
 
   useEffect(() => {
@@ -14,6 +15,7 @@ function Alerts() {
       })
       .catch((error) => {
         console.error("Alerts fetch error:", error)
+        setError(true)
       })
       .finally(() => {
         setLoading(false)
@@ -81,7 +83,17 @@ function Alerts() {
         <SourceBadge source="simulated" />
       </div>
 
-      {/* Summary cards */}
+      {/* Backend Error */}
+
+      {error && (
+        <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+          <p className="text-sm text-red-400">
+            Unable to load alerts. Please check that the backend is running.
+          </p>
+        </div>
+      )}
+
+      {/* Summary Cards */}
 
       <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
 
@@ -137,7 +149,7 @@ function Alerts() {
         )}
       </div>
 
-      {/* Alert list */}
+      {/* Alert List */}
 
       <div className="mt-6">
 
@@ -147,7 +159,7 @@ function Alerts() {
           </p>
         )}
 
-        {!loading && filteredAlerts.length === 0 && (
+        {!loading && !error && filteredAlerts.length === 0 && (
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center">
             <p className="text-slate-400">
               No alerts found.
@@ -163,7 +175,7 @@ function Alerts() {
               className="rounded-xl border border-slate-800 bg-slate-900 p-6"
             >
 
-              {/* Alert header */}
+              {/* Alert Header */}
 
               <div className="flex items-start justify-between">
 

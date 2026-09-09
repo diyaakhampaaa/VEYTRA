@@ -1,5 +1,5 @@
-const API_BASE_URL = "http://127.0.0.1:8000"
-
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 export async function checkBackend() {
   const response = await fetch(`${API_BASE_URL}/health`)
 
@@ -19,9 +19,16 @@ export async function getCameras() {
 
   return response.json()
 }
+
 export async function searchVehicle(plate) {
+  const normalizedPlate = plate
+    .replace(/\s+/g, "")
+    .toUpperCase()
+
   const response = await fetch(
-    `${API_BASE_URL}/vehicles/search?plate=${encodeURIComponent(plate)}`
+    `${API_BASE_URL}/vehicles/search?plate=${encodeURIComponent(
+      normalizedPlate
+    )}`
   )
 
   if (!response.ok) {
