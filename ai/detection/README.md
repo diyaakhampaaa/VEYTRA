@@ -63,7 +63,7 @@ result = detect(frame, camera_id="C01", timestamp="2026-09-06T15:30:00", source=
 
 ### CLI
 ```bash
-python run_detection.py --image tests/sample_frames/real_sample1.png --camera-id C01 --source real
+python run_detection.py --image tests/sample_frames/sample1.jpg --camera-id C01 --source real
 ```
 
 ### HTTP API
@@ -72,7 +72,7 @@ uvicorn api:app --reload
 ```
 ```bash
 curl -X POST "http://127.0.0.1:8000/detect" \
-  -F "image=@tests/sample_frames/real_sample1.png" \
+  -F "image=@tests/sample_frames/sample1.jpg" \
   -F "camera_id=C01" \
   -F "timestamp=2026-09-06T15:30:00" \
   -F "source=real"
