@@ -159,3 +159,51 @@ def test_detect_missing_plate_sets_null_not_omitted():
     for det in result["detections"]:
         assert "plate_bbox" in det  # key must exist even if value is None
         assert "plate_confidence" in det
+
+
+
+def test_plate_crop_is_valid_base64_jpeg(monkeypatch):
+    """Plate crop should be returned as a decodable base64 JPEG."""
+    import base64
+    import cv2
+    import detector as detector_module
+
+    monkeypatch.setattr(
+        detector_module,
+        "_vehicle_model",
+        "STUB_VEHICLE_MODEL",
+    )
+    monkeypatch.setattr(
+        detector_module,
+        "_plate_model",
+        "STUB_PLATE_MODEL",
+    )
+
+    frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+    result = detect(
+        frame,
+        camera_id="C10",
+        timestamp="2026-09-09T15:39:00",
+        source="simulated",
+    )
+
+    assert len(result["detections"]) > 0
+
+    detection = result["detections"][0]
+
+    assert detection["plate_bbox"] is not None
+    assert detection["plate_crop"] is not None
+    assert isinstance(detection["plate_crop"], str)
+
+    # Decode base64 -> JPEG bytes -> OpenCV image
+    image_bytes = base64.b64decode(detection["plate_crop"])
+    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+
+    crop = cv2.imdecode(
+        image_array,
+        cv2.IMREAD_COLOR,
+    )
+
+    assert crop is not None
+    assert crop.size > 0

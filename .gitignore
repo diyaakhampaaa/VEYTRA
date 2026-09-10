@@ -1,6 +1,16 @@
+# Environment files
 .env
+
+# Python cache
 __pycache__/
 *.pyc
-.venv-ocr/ 
-__pycache__/ 
-*.pyc 
+
+# Virtual environments
+.venv/
+venv/
+.venv-ocr/
+
+# Model weights (large files, never commit)
+
+# OS
+.DS_Store
