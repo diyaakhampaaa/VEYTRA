@@ -5,7 +5,7 @@ import Sidebar from "./components/Sidebar"
 import LandingPage from "./pages/LandingPage"
 import AuthChoice from "./pages/AuthChoice"
 import Login from "./pages/Login"
-import Signup from "./pages/Signup"
+import SignUp from "./pages/Signup"
 
 import CommandCenter from "./pages/CommandCenter"
 import VehicleSearch from "./pages/VehicleSearch"
