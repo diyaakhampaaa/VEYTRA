@@ -7,3 +7,17 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
+
+# Model weights (large files, never commit)
+ai/detection/weights/*.pt
+ai/detection/weights/*.pth
+
+# Env
+.env
+
+# OS
+.DS_Store
+
+# Node / frontend
+node_modules/
+frontend/dist/
