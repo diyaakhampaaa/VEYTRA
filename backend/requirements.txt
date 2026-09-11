@@ -6,3 +6,4 @@ geoalchemy2
 python-dotenv
 opencv-python-headless
 python-multipart
+rapidfuzz
