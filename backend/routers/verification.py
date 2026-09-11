@@ -9,6 +9,11 @@ router = APIRouter(
 )
 
 
+# Temporary in-memory store for verification results.
+# Later this can be replaced with PostgreSQL.
+verification_events: list[dict[str, Any]] = []
+
+
 @router.post("/run")
 def run_verification(payloads: list[dict[str, Any]]):
     """
@@ -17,6 +22,10 @@ def run_verification(payloads: list[dict[str, Any]]):
 
     try:
         results = process_verification_payloads(payloads)
+
+        # Store the latest verification results
+        verification_events.clear()
+        verification_events.extend(results)
 
         return {
             "status": "success",
@@ -29,3 +38,16 @@ def run_verification(payloads: list[dict[str, Any]]):
             status_code=500,
             detail=f"Verification pipeline failed: {str(error)}",
         )
+
+
+@router.get("/events")
+def get_verification_events():
+    """
+    Return verification events for the VEYTRA dashboard.
+    """
+
+    return {
+        "status": "success",
+        "count": len(verification_events),
+        "events": verification_events,
+    }

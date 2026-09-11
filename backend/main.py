@@ -12,20 +12,39 @@ from backend.routers.alerts import router as alerts_router
 from backend.routers.simulation import router as simulation_router
 
 
-app = FastAPI(title="VEYTRA API")
+app = FastAPI(
+    title="VEYTRA API",
+    description="City-wide vehicle and traffic intelligence platform",
+    version="1.0.0",
+)
 
 
+# ============================================================
 # CORS
+# ============================================================
+# Allow the Vite development server to communicate with FastAPI.
+# Vite may use either port 5173 or 5174 depending on availability.
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# API Routers
+# ============================================================
+# API ROUTERS
+# ============================================================
+
 app.include_router(detection_router)
 app.include_router(ocr_router)
 app.include_router(tracking_router)
@@ -37,18 +56,25 @@ app.include_router(alerts_router)
 app.include_router(simulation_router)
 
 
-# Root endpoint
+# ============================================================
+# ROOT ENDPOINT
+# ============================================================
+
 @app.get("/")
 def root():
     return {
-        "message": "VEYTRA API is running"
+        "message": "VEYTRA API is running",
+        "status": "online",
     }
 
 
-# Health check
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
 @app.get("/health")
 def health():
     return {
         "status": "healthy",
-        "service": "VEYTRA backend"
+        "service": "VEYTRA backend",
     }

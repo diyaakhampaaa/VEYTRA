@@ -58,8 +58,44 @@ def _congestion_level(score: float) -> str:
     return "severe"
 
 
+def _prepare_events(events: pd.DataFrame) -> pd.DataFrame:
+    """Normalize incoming vehicle events before analytics processing."""
+
+    if events is None:
+        return pd.DataFrame()
+
+    work = events.copy()
+
+    if work.empty:
+        return work
+
+    # API requests send timestamps as strings.
+    # Convert them BEFORE any pandas .dt operations happen.
+    if "timestamp" in work.columns:
+        work["timestamp"] = pd.to_datetime(
+            work["timestamp"],
+            errors="coerce",
+        )
+
+        # Remove rows where timestamp could not be parsed.
+        work = work.dropna(subset=["timestamp"]).copy()
+
+    # Normalize common identifier columns.
+    if "vehicle_id" in work.columns:
+        work["vehicle_id"] = work["vehicle_id"].astype("string")
+
+    if "camera_id" in work.columns:
+        work["camera_id"] = work["camera_id"].astype("string")
+
+    if "road_segment_id" in work.columns:
+        work["road_segment_id"] = work["road_segment_id"].astype("string")
+
+    return work
+
+
 def _prepare_speed(events: pd.DataFrame) -> pd.DataFrame:
-    """Calculate average valid estimated speed per road segment."""
+    """Calculate average valid speed per road segment."""
+
     if events.empty:
         return pd.DataFrame(
             columns=["road_segment_id", "average_speed_kmh"]
@@ -71,6 +107,33 @@ def _prepare_speed(events: pd.DataFrame) -> pd.DataFrame:
         )
 
     work = events.copy()
+
+    # If the event already contains an estimated/measured speed,
+    # use it directly. This is the preferred API path.
+    if "speed_kmh" in work.columns:
+        work["speed_kmh"] = pd.to_numeric(
+            work["speed_kmh"],
+            errors="coerce",
+        )
+
+        valid = work.dropna(
+            subset=["road_segment_id", "speed_kmh"]
+        ).copy()
+
+        if not valid.empty:
+            return (
+                valid.groupby("road_segment_id", dropna=False)
+                .agg(
+                    average_speed_kmh=("speed_kmh", "mean")
+                )
+                .reset_index()
+            )
+
+    # Otherwise fall back to the trajectory-based speed calculation.
+    if "vehicle_id" not in work.columns:
+        return pd.DataFrame(
+            columns=["road_segment_id", "average_speed_kmh"]
+        )
 
     if "trajectory_id" not in work.columns:
         work["trajectory_id"] = work["vehicle_id"]
@@ -84,11 +147,25 @@ def _prepare_speed(events: pd.DataFrame) -> pd.DataFrame:
             columns=["road_segment_id", "average_speed_kmh"]
         )
 
-    valid_speeds = trajectory_speeds[
-        trajectory_speeds["status"] == "ok"
-    ].copy()
+    if "status" in trajectory_speeds.columns:
+        valid_speeds = trajectory_speeds[
+            trajectory_speeds["status"] == "ok"
+        ].copy()
+    else:
+        valid_speeds = trajectory_speeds.copy()
 
     if valid_speeds.empty:
+        return pd.DataFrame(
+            columns=["road_segment_id", "average_speed_kmh"]
+        )
+
+    required_columns = {
+        "vehicle_id",
+        "trajectory_id",
+        "estimated_speed_kmh",
+    }
+
+    if not required_columns.issubset(valid_speeds.columns):
         return pd.DataFrame(
             columns=["road_segment_id", "average_speed_kmh"]
         )
@@ -115,8 +192,16 @@ def _prepare_speed(events: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
+    if segment_speeds.empty:
+        return pd.DataFrame(
+            columns=["road_segment_id", "average_speed_kmh"]
+        )
+
     return (
-        segment_speeds.groupby("road_segment_id", dropna=False)
+        segment_speeds.groupby(
+            "road_segment_id",
+            dropna=False,
+        )
         .agg(
             average_speed_kmh=("estimated_speed_kmh", "mean")
         )
@@ -134,22 +219,35 @@ def compute_congestion(
     as_json: bool = False,
 ) -> dict[str, Any]:
     """Compute explainable congestion scores by road segment and time."""
+
     if density_threshold <= 0:
-        raise ValueError("density_threshold must be greater than zero.")
+        raise ValueError(
+            "density_threshold must be greater than zero."
+        )
 
     if speed_reference_kmh <= 0:
-        raise ValueError("speed_reference_kmh must be greater than zero.")
+        raise ValueError(
+            "speed_reference_kmh must be greater than zero."
+        )
 
     if density_weight < 0 or speed_weight < 0:
-        raise ValueError("Congestion weights cannot be negative.")
+        raise ValueError(
+            "Congestion weights cannot be negative."
+        )
 
     total_weight = density_weight + speed_weight
 
     if total_weight == 0:
-        raise ValueError("At least one congestion weight must be greater than zero.")
+        raise ValueError(
+            "At least one congestion weight must be greater than zero."
+        )
 
     density_weight /= total_weight
     speed_weight /= total_weight
+
+    # IMPORTANT:
+    # Normalize API data before passing it to density.py.
+    events = _prepare_events(events)
 
     density_result = compute_density(
         events,
@@ -161,6 +259,7 @@ def compute_congestion(
 
     if density.empty:
         result = _empty_frame()
+
     else:
         speed = _prepare_speed(events)
 
@@ -189,9 +288,9 @@ def compute_congestion(
             + speed_weight * result["speed_score"]
         ).round(4)
 
-        result["congestion_level"] = result["congestion_score"].apply(
-            _congestion_level
-        )
+        result["congestion_level"] = result[
+            "congestion_score"
+        ].apply(_congestion_level)
 
         result = result.rename(
             columns={
@@ -245,17 +344,22 @@ def _records(df: pd.DataFrame) -> list[dict[str, Any]]:
     serialized = df.copy()
 
     for column in serialized.columns:
-        if pd.api.types.is_datetime64_any_dtype(serialized[column]):
+        if pd.api.types.is_datetime64_any_dtype(
+            serialized[column]
+        ):
             serialized[column] = serialized[column].dt.strftime(
                 "%Y-%m-%dT%H:%M:%S%z"
             )
+
             serialized[column] = serialized[column].str.replace(
                 r"(\d{2})(\d{2})$",
                 r"\1:\2",
                 regex=True,
             )
 
-    records = serialized.to_dict(orient="records")
+    records = serialized.to_dict(
+        orient="records"
+    )
 
     return [
         {
