@@ -83,6 +83,21 @@ def _load_plate_model():
 
     return _plate_model
 
+def _is_plausible_vehicle_box(bbox: list[int], frame_shape: tuple) -> bool:
+    """
+    Filters out degenerate detections (partial vehicles cut off at frame
+    edges, slivers, noise) that are too unreliable to run plate detection
+    on. A real, mostly-visible vehicle from CCTV height is wider than it
+    is extremely tall, and has a minimum reasonable pixel size.
+    """
+    x1, y1, x2, y2 = bbox
+    w, h = x2 - x1, y2 - y1
+    if w < 30 or h < 30:
+        return False
+    aspect_ratio = w / h if h > 0 else 0
+    if aspect_ratio < 0.35:   # too tall/thin to be a real vehicle silhouette
+        return False
+    return True
 
 def _run_vehicle_detection(frame: np.ndarray) -> list[dict]:
     """
@@ -110,24 +125,19 @@ def _run_vehicle_detection(frame: np.ndarray) -> list[dict]:
             }
         ]
 
-    results = model.predict(
-        frame,
-        conf=0.4,
-        verbose=False,
-    )
-
+    results = model.predict(frame, conf=0.4, verbose=False)
     result = results[0]
 
     detections = []
-
     for box in result.boxes:
         cls_id = int(box.cls[0])
         cls_name = model.names[cls_id]
         conf = float(box.conf[0])
+        x1, y1, x2, y2 = [int(v) for v in box.xyxy[0].tolist()]
 
-        x1, y1, x2, y2 = [
-            int(v) for v in box.xyxy[0].tolist()
-        ]
+        if not _is_plausible_vehicle_box([x1, y1, x2, y2], frame.shape):
+            logger.debug("Skipping degenerate/edge vehicle box: %s", [x1, y1, x2, y2])
+            continue
 
         detections.append(
             {
@@ -137,7 +147,6 @@ def _run_vehicle_detection(frame: np.ndarray) -> list[dict]:
                 "vehicle_detector": "VehicleNet-Y26x",
             }
         )
-
     return detections
 
 
