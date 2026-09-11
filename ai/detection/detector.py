@@ -154,29 +154,17 @@ def _encode_plate_crop(
     frame: np.ndarray,
     plate_bbox: list[int] | None,
 ) -> str | None:
-    """
-    Crop a detected plate from the full frame and encode it
-    as a base64 JPEG string.
-
-    The base64 string can safely be returned through the JSON API
-    and decoded by Member 2 before OCR.
-    """
     if plate_bbox is None:
         return None
 
     h, w = frame.shape[:2]
+    x1, y1, x2, y2 = [int(v) for v in plate_bbox]
 
-    x1, y1, x2, y2 = [
-        int(v) for v in plate_bbox
-    ]
-
-    # Clamp coordinates to frame boundaries.
     x1 = max(0, min(x1, w))
     x2 = max(0, min(x2, w))
     y1 = max(0, min(y1, h))
     y2 = max(0, min(y2, h))
 
-    # Invalid bounding box.
     if x2 <= x1 or y2 <= y1:
         return None
 
@@ -185,14 +173,21 @@ def _encode_plate_crop(
     if crop.size == 0:
         return None
 
-    success, encoded = cv2.imencode(".jpg", crop)
+    # Upscale small crops for better OCR readability. Plate crops from
+    # wide-angle CCTV frames are often tiny (e.g. 60x40px) — upscaling
+    # with cubic interpolation before OCR measurably helps read rates.
+    crop_h, crop_w = crop.shape[:2]
+    MIN_DIMENSION = 150
+    if max(crop_h, crop_w) < MIN_DIMENSION:
+        scale = MIN_DIMENSION / max(crop_h, crop_w)
+        new_w, new_h = int(crop_w * scale), int(crop_h * scale)
+        crop = cv2.resize(crop, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
+    success, encoded = cv2.imencode(".jpg", crop)
     if not success:
         return None
 
-    return base64.b64encode(
-        encoded.tobytes()
-    ).decode("utf-8")
+    return base64.b64encode(encoded.tobytes()).decode("utf-8")
 
 
 def _run_plate_detection(
