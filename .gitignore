@@ -1,12 +1,25 @@
+<<<<<<< HEAD
+# Environment files
+.env
+
+# Python cache
+=======
 # Python bytecode and test caches
+>>>>>>> origin/main
 __pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
+*.pyc
 
 # Virtual environments
 .venv/
 venv/
+<<<<<<< HEAD
+.venv-ocr/
+
+# Model weights (large files, never commit)
+
+# OS
+.DS_Store
+=======
 
 # Model weights (large files, never commit)
 ai/detection/weights/*.pt
@@ -21,3 +34,4 @@ ai/detection/weights/*.pth
 # Node / frontend
 node_modules/
 frontend/dist/
+>>>>>>> origin/main

@@ -111,6 +111,7 @@ def _score_payload(
     plate: float | None,
     missing: list[str],
     reject_reason: str | None,
+    verification_eligible: bool = False,
 ) -> dict[str, Any]:
     return {
         "overall": overall,
@@ -121,6 +122,7 @@ def _score_payload(
         "plate": plate,
         "missing": missing,
         "reject_reason": reject_reason,
+        "verification_eligible": verification_eligible,
     }
 
 
@@ -292,26 +294,24 @@ class CrossCameraMatcher:
             if appearance is None:
                 missing.append("missing_embedding")
 
-        plate_a = _normalize_plate(track_a.get("plate_text"))
-        plate_b = _normalize_plate(track_b.get("plate_text"))
+        raw_plate_a = track_a.get("plate_text")
+        if raw_plate_a is None:
+            raw_plate_a = track_a.get("plate")
+        raw_plate_b = track_b.get("plate_text")
+        if raw_plate_b is None:
+            raw_plate_b = track_b.get("plate")
+        plate_a = _normalize_plate(raw_plate_a)
+        plate_b = _normalize_plate(raw_plate_b)
         if plate_a is None or plate_b is None:
             plate = None
             missing.append("missing_plate")
         elif plate_a != plate_b:
-            return _score_payload(
-                overall=None,
-                accepted=False,
-                appearance=appearance,
-                time=time_score,
-                spatial=spatial_score,
-                plate=0.0,
-                missing=missing,
-                reject_reason="plate_mismatch",
-            )
+            plate = 0.0
         else:
             plate = 1.0
 
         plate_accept = plate == 1.0
+        plate_mismatch = plate == 0.0
         if appearance is None and not plate_accept:
             return _score_payload(
                 overall=None,
@@ -360,6 +360,22 @@ class CrossCameraMatcher:
                 reject_reason="overall_below_threshold",
             )
 
+        # A plate disagreement is NOT a hard identity failure anymore.
+        # It remains rejected as a MATCH, but if the non-plate cues are strong
+        # enough, preserve it as a verification candidate for Member 4.
+        if plate_mismatch:
+            return _score_payload(
+                overall=overall,
+                accepted=False,
+                appearance=appearance,
+                time=time_score,
+                spatial=spatial_score,
+                plate=plate,
+                missing=missing,
+                reject_reason="plate_mismatch",
+                verification_eligible=True,
+            )
+
         return _score_payload(
             overall=overall,
             accepted=True,
@@ -370,6 +386,39 @@ class CrossCameraMatcher:
             missing=missing,
             reject_reason=None,
         )
+
+    @staticmethod
+    def _verification_candidate(
+        track_a: dict[str, Any],
+        track_b: dict[str, Any],
+        score: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build a Member 4-ready candidate without changing identity labels."""
+        def event(track: dict[str, Any]) -> dict[str, Any]:
+            raw_plate = track.get("plate_text")
+            if raw_plate is None:
+                raw_plate = track.get("plate")
+            plate = _normalize_plate(raw_plate)
+            confidence = track.get("ocr_confidence", track.get("confidence"))
+            try:
+                confidence = float(confidence) if confidence is not None else 0.0
+            except (TypeError, ValueError):
+                confidence = 0.0
+            return {
+                "event_id": f"{track.get('camera_id')}:{track.get('local_track_id')}:{track.get('first_timestamp')}",
+                "camera_id": track.get("camera_id"),
+                "plate": plate,
+                "ocr_confidence": max(0.0, min(1.0, confidence)),
+                "timestamp": track.get("first_timestamp") or track.get("last_timestamp"),
+                "reid_similarity": score.get("appearance"),
+            }
+
+        return {
+            "event": event(track_a),
+            "supporting_event": event(track_b),
+            "match_score": dict(score),
+            "reason": "plausible_cross_camera_match_with_plate_mismatch",
+        }
 
     def match(self, tracks: Any) -> dict[str, Any]:
         """Assign ``vehicle_id`` values. Invalid input never raises."""
@@ -392,15 +441,21 @@ class CrossCameraMatcher:
             result: dict[str, Any] = {"tracks": skipped, "matches": []}
             if tracks != []:
                 result["error"] = "no_valid_tracks"
+            result["verification_candidates"] = []
             return result
 
         n = len(valid)
         uf = _UnionFind([str(track["camera_id"]) for _, track in valid])
         scored_pairs: list[tuple[float, int, int, dict[str, Any]]] = []
+        verification_candidates: list[dict[str, Any]] = []
 
         for i in range(n):
             for j in range(i + 1, n):
                 score = self.score_pair(valid[i][1], valid[j][1])
+                if score.get("verification_eligible"):
+                    verification_candidates.append(
+                        self._verification_candidate(valid[i][1], valid[j][1], score)
+                    )
                 if not score["accepted"] or score["overall"] is None:
                     continue
                 scored_pairs.append((float(score["overall"]), i, j, score))
@@ -448,7 +503,11 @@ class CrossCameraMatcher:
                 }
             )
 
-        return {"tracks": labeled + skipped, "matches": matches}
+        return {
+            "tracks": labeled + skipped,
+            "matches": matches,
+            "verification_candidates": verification_candidates,
+        }
 
     def _lookup_link(self, cam_a: str, cam_b: str) -> dict[str, float] | None:
         if not self.camera_links:
