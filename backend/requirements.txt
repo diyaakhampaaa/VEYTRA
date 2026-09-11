@@ -4,3 +4,4 @@ SQLAlchemy
 psycopg2-binary
 geoalchemy2
 python-dotenv
+opencv-python-headless
