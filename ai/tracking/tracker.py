@@ -1,57 +1,53 @@
-"""Per-camera multi-object tracker for Member 1 detection JSON.
+"""Per-camera ByteTrack-style multi-object tracker for Member 1 detections.
 
-Design
-------
-Member 1 emits one JSON object per camera frame. This module assigns a
-``local_track_id`` to each detection by matching bounding boxes to tracks
-seen on the *same camera* in previous frames.
+Member 3 contract
+-----------------
+This module assigns ``local_track_id`` independently for every camera.
+It implements the core ByteTrack association strategy:
 
-Matching is IoU-only on purpose. Re-ID embeddings, Kalman motion models,
-and ByteTrack can replace ``IoUAssociator`` later without changing the
-JSON contract: any associator only needs ``associate(track_bboxes,
-detection_bboxes)``.
+1. Predict existing tracks with a constant-velocity motion model.
+2. Split detections into high- and low-confidence groups.
+3. Associate high-confidence detections first.
+4. Associate remaining tracks with low-confidence detections.
+5. Create new tracks from unmatched high-confidence detections.
+6. Age unmatched tracks and remove them after ``max_age`` frames.
 
-IDs are local to a camera. The same integer may appear on two cameras;
-cross-camera identity is a later stage.
+This keeps the existing VEYTRA JSON contract unchanged. Cross-camera
+identity is intentionally handled later by ``matcher.py`` using plate,
+Re-ID, temporal, spatial and route signals.
+
+The implementation is dependency-free; it does not require a separate
+tracking package. Re-ID remains a separate cross-camera component.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
 BBox = list[float]
 
 
 def bbox_iou(box_a: BBox, box_b: BBox) -> float:
-    """Intersection-over-union of two [x1, y1, x2, y2] boxes.
-
-    Returns 0.0 when boxes do not overlap or have non-positive area.
-    """
+    """Intersection-over-union for [x1, y1, x2, y2] boxes."""
     ax1, ay1, ax2, ay2 = box_a
     bx1, by1, bx2, by2 = box_b
-
     inter_x1 = max(ax1, bx1)
     inter_y1 = max(ay1, by1)
     inter_x2 = min(ax2, bx2)
     inter_y2 = min(ay2, by2)
-
     inter_w = max(0.0, inter_x2 - inter_x1)
     inter_h = max(0.0, inter_y2 - inter_y1)
-    intersection = inter_w * inter_h
-    if intersection <= 0.0:
+    inter = inter_w * inter_h
+    if inter <= 0:
         return 0.0
-
     area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
     area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
-    union = area_a + area_b - intersection
-    if union <= 0.0:
-        return 0.0
-    return intersection / union
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
 
 
 def is_valid_bbox(value: Any) -> bool:
-    """True when value is a 4-number box with positive width and height."""
     if not isinstance(value, (list, tuple)) or len(value) != 4:
         return False
     try:
@@ -61,250 +57,260 @@ def is_valid_bbox(value: Any) -> bool:
     return x2 > x1 and y2 > y1
 
 
-class Associator(Protocol):
-    """Strategy for pairing existing tracks with new detections.
-
-    Return value:
-        matches: (track_index, detection_index) pairs
-        unmatched_tracks: track indices with no partner
-        unmatched_detections: detection indices with no partner
-    """
-
-    def associate(
-        self,
-        track_bboxes: list[BBox],
-        detection_bboxes: list[BBox],
-    ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
-        ...
+def _center(box: BBox) -> tuple[float, float]:
+    return ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
 
 
-class IoUAssociator:
-    """Greedy highest-IoU matching with a minimum overlap threshold.
+def _velocity(box_a: BBox, box_b: BBox) -> tuple[float, float]:
+    ax, ay = _center(box_a)
+    bx, by = _center(box_b)
+    return bx - ax, by - ay
 
-    Each track and each detection is used at most once. This is enough for
-    a first tracker and has no third-party dependencies. A later Kalman or
-    ByteTrack associator can implement the same ``associate`` method.
-    """
 
-    def __init__(self, iou_threshold: float = 0.3) -> None:
-        if not 0.0 <= iou_threshold <= 1.0:
-            raise ValueError("iou_threshold must be between 0 and 1 inclusive")
-        self.iou_threshold = iou_threshold
+def _predict_box(box: BBox, velocity: tuple[float, float]) -> BBox:
+    vx, vy = velocity
+    return [box[0] + vx, box[1] + vy, box[2] + vx, box[3] + vy]
 
-    def associate(
-        self,
-        track_bboxes: list[BBox],
-        detection_bboxes: list[BBox],
-    ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
-        if not track_bboxes or not detection_bboxes:
-            return (
-                [],
-                list(range(len(track_bboxes))),
-                list(range(len(detection_bboxes))),
-            )
 
-        # All candidate pairs above threshold, highest IoU first.
-        pairs: list[tuple[float, int, int]] = []
-        for t_idx, t_box in enumerate(track_bboxes):
-            for d_idx, d_box in enumerate(detection_bboxes):
-                iou = bbox_iou(t_box, d_box)
-                if iou >= self.iou_threshold:
-                    pairs.append((iou, t_idx, d_idx))
-        pairs.sort(key=lambda item: item[0], reverse=True)
+def _greedy_iou_matches(
+    track_boxes: list[BBox],
+    det_boxes: list[BBox],
+    threshold: float,
+) -> tuple[list[tuple[int, int]], list[int], list[int]]:
+    if not track_boxes or not det_boxes:
+        return [], list(range(len(track_boxes))), list(range(len(det_boxes)))
 
-        used_tracks: set[int] = set()
-        used_dets: set[int] = set()
-        matches: list[tuple[int, int]] = []
-        for _, t_idx, d_idx in pairs:
-            if t_idx in used_tracks or d_idx in used_dets:
-                continue
-            used_tracks.add(t_idx)
-            used_dets.add(d_idx)
-            matches.append((t_idx, d_idx))
+    pairs: list[tuple[float, int, int]] = []
+    for ti, tbox in enumerate(track_boxes):
+        for di, dbox in enumerate(det_boxes):
+            score = bbox_iou(tbox, dbox)
+            if score >= threshold:
+                pairs.append((score, ti, di))
+    pairs.sort(key=lambda x: x[0], reverse=True)
 
-        unmatched_tracks = [i for i in range(len(track_bboxes)) if i not in used_tracks]
-        unmatched_dets = [i for i in range(len(detection_bboxes)) if i not in used_dets]
-        return matches, unmatched_tracks, unmatched_dets
+    used_t: set[int] = set()
+    used_d: set[int] = set()
+    matches: list[tuple[int, int]] = []
+    for _, ti, di in pairs:
+        if ti in used_t or di in used_d:
+            continue
+        used_t.add(ti)
+        used_d.add(di)
+        matches.append((ti, di))
+
+    return (
+        matches,
+        [i for i in range(len(track_boxes)) if i not in used_t],
+        [i for i in range(len(det_boxes)) if i not in used_d],
+    )
 
 
 @dataclass
 class _Track:
-    """Internal active track for one camera."""
-
     track_id: int
     bbox: BBox
+    previous_bbox: BBox | None = None
+    velocity: tuple[float, float] = (0.0, 0.0)
     time_since_update: int = 0
     hits: int = 1
+    confidence: float = 0.0
+
+    def predict(self) -> BBox:
+        return _predict_box(self.bbox, self.velocity)
+
+    def update(self, bbox: BBox, confidence: float) -> None:
+        self.previous_bbox = self.bbox
+        self.velocity = _velocity(self.bbox, bbox)
+        self.bbox = list(bbox)
+        self.confidence = confidence
+        self.time_since_update = 0
+        self.hits += 1
 
 
 @dataclass
 class _CameraState:
-    """Track list and ID counter for a single camera_id."""
-
     next_id: int = 1
     tracks: list[_Track] = field(default_factory=list)
 
     def new_id(self) -> int:
-        track_id = self.next_id
+        value = self.next_id
         self.next_id += 1
-        return track_id
-
-
-def _empty_result(
-    camera_id: Any = None,
-    timestamp: Any = None,
-    source: Any = None,
-    error: str = "invalid_frame_result",
-) -> dict[str, Any]:
-    return {
-        "camera_id": camera_id,
-        "timestamp": timestamp,
-        "source": source,
-        "detections": [],
-        "error": error,
-    }
-
-
-def _copy_passthrough_fields(frame_result: dict[str, Any]) -> dict[str, Any]:
-    """Keep Member 1 metadata; do not invent fields they did not send."""
-    out: dict[str, Any] = {
-        "camera_id": frame_result.get("camera_id"),
-        "timestamp": frame_result.get("timestamp"),
-        "source": frame_result.get("source"),
-        "detections": [],
-    }
-    if "error" in frame_result:
-        out["error"] = frame_result["error"]
-    return out
+        return value
 
 
 class PerCameraTracker:
-    """Assign ``local_track_id`` independently for each ``camera_id``.
-
-    Call ``update`` once per frame, in time order, with Member 1's detection
-    dict. Frames from different cameras may be interleaved; state is keyed
-    by ``camera_id``.
+    """ByteTrack-style local tracker with independent state per camera.
 
     Parameters
     ----------
-    associator:
-        Matching strategy. Defaults to greedy IoU. Pass a Kalman/ByteTrack
-        associator later without changing callers.
+    high_threshold:
+        Confidence threshold for the first ByteTrack association stage.
+    low_threshold:
+        Minimum confidence accepted into the second association stage.
+    match_threshold:
+        IoU threshold for association against motion-predicted boxes.
     max_age:
-        How many consecutive frames a track may go unmatched before it is
-        dropped. A vehicle that reappears after that gets a new id (Re-ID
-        will later recover that case).
+        Number of consecutive unmatched frames before a track is removed.
     """
 
     def __init__(
         self,
-        associator: Associator | None = None,
+        high_threshold: float = 0.5,
+        low_threshold: float = 0.1,
+        match_threshold: float = 0.3,
         max_age: int = 5,
     ) -> None:
+        if not 0 <= low_threshold <= high_threshold <= 1:
+            raise ValueError("require 0 <= low_threshold <= high_threshold <= 1")
+        if not 0 <= match_threshold <= 1:
+            raise ValueError("match_threshold must be between 0 and 1")
         if max_age < 0:
             raise ValueError("max_age must be >= 0")
-        self.associator: Associator = associator if associator is not None else IoUAssociator()
+
+        self.high_threshold = high_threshold
+        self.low_threshold = low_threshold
+        self.match_threshold = match_threshold
         self.max_age = max_age
         self._cameras: dict[str, _CameraState] = {}
 
-    def update(self, frame_result: Any) -> dict[str, Any]:
-        """Process one Member 1 frame payload and return tracked detections.
+    def _state_for(self, camera_id: str) -> _CameraState:
+        return self._cameras.setdefault(camera_id, _CameraState())
 
-        Never raises on bad input. Invalid payloads yield an empty
-        ``detections`` list plus an ``error`` key.
-        """
+    def _age_and_prune(self, state: _CameraState, unmatched: list[int]) -> None:
+        for idx in unmatched:
+            if 0 <= idx < len(state.tracks):
+                state.tracks[idx].time_since_update += 1
+        state.tracks = [
+            t for t in state.tracks if t.time_since_update <= self.max_age
+        ]
+
+    @staticmethod
+    def _confidence(det: dict[str, Any]) -> float:
+        value = det.get("vehicle_confidence", det.get("confidence", 0.0))
+        try:
+            return max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            return 0.0
+
+    def update(self, frame_result: Any) -> dict[str, Any]:
+        """Track one frame while preserving all Member 1 detection fields."""
         if not isinstance(frame_result, dict):
-            return _empty_result()
+            return {
+                "camera_id": None,
+                "timestamp": None,
+                "source": None,
+                "detections": [],
+                "error": "invalid_frame_result",
+            }
 
         camera_id = frame_result.get("camera_id")
+        result = {
+            "camera_id": camera_id,
+            "timestamp": frame_result.get("timestamp"),
+            "source": frame_result.get("source"),
+            "detections": [],
+        }
+        if "error" in frame_result:
+            result["error"] = frame_result["error"]
+
         detections = frame_result.get("detections")
-
-        if detections is None:
-            result = _copy_passthrough_fields(frame_result)
-            # A missing list is a gap: age this camera's tracks, then return.
-            if camera_id is not None:
-                state = self._state_for(str(camera_id))
-                self._age_unmatched(state, list(range(len(state.tracks))))
-            result["detections"] = []
-            if "error" not in result:
-                result["error"] = "missing_detections"
-            return result
-
-        if not isinstance(detections, list):
-            result = _copy_passthrough_fields(frame_result)
-            result["detections"] = []
-            result["error"] = "detections_not_a_list"
-            return result
-
         camera_key = str(camera_id) if camera_id is not None else "_unknown"
         state = self._state_for(camera_key)
 
-        indexed: list[tuple[int, BBox]] = []
+        if detections is None:
+            self._age_and_prune(state, list(range(len(state.tracks))))
+            result["error"] = result.get("error", "missing_detections")
+            return result
+
+        if not isinstance(detections, list):
+            result["error"] = "detections_not_a_list"
+            return result
+
+        output = [dict(det) if isinstance(det, dict) else {} for det in detections]
+        valid: list[tuple[int, BBox, float]] = []
         for i, det in enumerate(detections):
             if not isinstance(det, dict):
                 continue
-            bbox = det.get("vehicle_bbox")
-            if is_valid_bbox(bbox):
-                indexed.append((i, [float(v) for v in bbox]))
+            box = det.get("vehicle_bbox")
+            if not is_valid_bbox(box):
+                continue
+            valid.append((i, [float(v) for v in box], self._confidence(det)))
 
-        track_bboxes = [t.bbox for t in state.tracks]
-        det_bboxes = [box for _, box in indexed]
-        matches, unmatched_tracks, unmatched_dets = self.associator.associate(
-            track_bboxes, det_bboxes
+        # Predict all active tracks one frame forward.
+        predicted = [track.predict() for track in state.tracks]
+
+        high = [(i, box, conf) for i, box, conf in valid if conf >= self.high_threshold]
+        low = [(i, box, conf) for i, box, conf in valid
+               if self.low_threshold <= conf < self.high_threshold]
+
+        # Stage 1: high-confidence detections.
+        high_boxes = [x[1] for x in high]
+        matches1, unmatched_tracks, unmatched_high = _greedy_iou_matches(
+            predicted, high_boxes, self.match_threshold
         )
 
         assigned: dict[int, int] = {}
+        for track_idx, high_idx in matches1:
+            det_idx, box, conf = high[high_idx]
+            state.tracks[track_idx].update(box, conf)
+            assigned[det_idx] = state.tracks[track_idx].track_id
 
-        for track_idx, det_idx in matches:
-            track = state.tracks[track_idx]
-            orig_i, box = indexed[det_idx]
-            track.bbox = box
-            track.time_since_update = 0
-            track.hits += 1
-            assigned[orig_i] = track.track_id
+        # Stage 2: remaining tracks vs low-confidence detections.
+        remaining_track_indices = unmatched_tracks
+        low_boxes = [x[1] for x in low]
+        rem_predicted = [predicted[i] for i in remaining_track_indices]
+        matches2, _, _ = _greedy_iou_matches(
+            rem_predicted, low_boxes, self.match_threshold
+        )
 
-        for det_idx in unmatched_dets:
-            orig_i, box = indexed[det_idx]
-            new_id = state.new_id()
-            state.tracks.append(_Track(track_id=new_id, bbox=box))
-            assigned[orig_i] = new_id
+        matched_low_dets: set[int] = set()
+        for local_track_idx, low_idx in matches2:
+            track_idx = remaining_track_indices[local_track_idx]
+            det_idx, box, conf = low[low_idx]
+            state.tracks[track_idx].update(box, conf)
+            assigned[det_idx] = state.tracks[track_idx].track_id
+            matched_low_dets.add(det_idx)
 
-        self._age_unmatched(state, unmatched_tracks)
+        matched_track_indices = {t for t, _ in matches1}
+        matched_track_indices.update(
+            remaining_track_indices[t] for t, _ in matches2
+        )
 
-        result = _copy_passthrough_fields(frame_result)
-        tracked: list[dict[str, Any]] = []
-        for i, det in enumerate(detections):
-            if isinstance(det, dict):
-                out_det = dict(det)
-            else:
-                out_det = {"invalid_detection": det}
-            out_det["local_track_id"] = assigned.get(i)
-            tracked.append(out_det)
-        result["detections"] = tracked
-        return result
-
-    def _state_for(self, camera_key: str) -> _CameraState:
-        if camera_key not in self._cameras:
-            self._cameras[camera_key] = _CameraState()
-        return self._cameras[camera_key]
-
-    def _age_unmatched(self, state: _CameraState, unmatched_tracks: list[int]) -> None:
-        """Increment miss count on unmatched tracks and drop stale ones."""
-        unmatched = set(unmatched_tracks)
-        surviving: list[_Track] = []
+        # Tracks unmatched after both association stages are aged.
         for idx, track in enumerate(state.tracks):
-            if idx in unmatched:
+            if idx not in matched_track_indices:
                 track.time_since_update += 1
-            if track.time_since_update <= self.max_age:
-                surviving.append(track)
-        state.tracks = surviving
+
+        # ByteTrack creates new tracks from unmatched HIGH-confidence detections.
+        for high_idx in unmatched_high:
+            det_idx, box, conf = high[high_idx]
+            track_id = state.new_id()
+            state.tracks.append(
+                _Track(track_id=track_id, bbox=list(box), confidence=conf)
+            )
+            assigned[det_idx] = track_id
+
+        # Low-confidence unmatched detections intentionally do not create IDs.
+        state.tracks = [
+            t for t in state.tracks if t.time_since_update <= self.max_age
+        ]
+
+        for i, det in enumerate(detections):
+            if not isinstance(det, dict):
+                output[i] = {"local_track_id": None}
+                continue
+            out = dict(det)
+            out["local_track_id"] = assigned.get(i)
+            output[i] = out
+
+        result["detections"] = output
+        return result
 
 
 def track_sequence(
-    frames: list[Any],
-    associator: Associator | None = None,
-    max_age: int = 5,
+    frames: list[dict[str, Any]],
+    **tracker_kwargs: Any,
 ) -> list[dict[str, Any]]:
-    """Run ``PerCameraTracker.update`` over an ordered list of frames."""
-    tracker = PerCameraTracker(associator=associator, max_age=max_age)
+    """Track a list of frames in order."""
+    tracker = PerCameraTracker(**tracker_kwargs)
     return [tracker.update(frame) for frame in frames]

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<routes>
+
+    <vType id="car"
+           accel="2.6"
+           decel="4.5"
+           sigma="0.5"
+           length="5"
+           minGap="2.5"
+           maxSpeed="13.89"
+           guiShape="passenger"/>
+
+    <vType id="bike"
+           accel="3.0"
+           decel="5.0"
+           sigma="0.5"
+           length="2"
+           minGap="1.5"
+           maxSpeed="11.11"
+           guiShape="motorcycle"/>
+
+    <route id="R1" edges="C01_C03 C03_C04"/>
+    <route id="R2" edges="C04_C03 C03_C01"/>
+    <route id="R3" edges="C02_C03 C03_C05"/>
+    <route id="R4" edges="C05_C03 C03_C02"/>
+    <route id="R5" edges="C01_C03 C03_C02"/>
+    <route id="R6" edges="C02_C03 C03_C04"/>
+    <route id="R7" edges="C04_C03 C03_C05"/>
+    <route id="R8" edges="C05_C03 C03_C01"/>
+
+    <vehicle id="V01" type="car" route="R1" depart="0"/>
+    <vehicle id="V02" type="car" route="R2" depart="2"/>
+    <vehicle id="V03" type="car" route="R3" depart="4"/>
+    <vehicle id="V04" type="car" route="R4" depart="6"/>
+    <vehicle id="V05" type="bike" route="R5" depart="8"/>
+    <vehicle id="V06" type="car" route="R6" depart="10"/>
+    <vehicle id="V07" type="car" route="R7" depart="12"/>
+    <vehicle id="V08" type="bike" route="R8" depart="14"/>
+    <vehicle id="V09" type="car" route="R1" depart="16"/>
+    <vehicle id="V10" type="car" route="R2" depart="18"/>
+    <vehicle id="V11" type="car" route="R3" depart="20"/>
+    <vehicle id="V12" type="bike" route="R4" depart="22"/>
+    <vehicle id="V13" type="car" route="R5" depart="24"/>
+    <vehicle id="V14" type="car" route="R6" depart="26"/>
+    <vehicle id="V15" type="car" route="R7" depart="28"/>
+    <vehicle id="V16" type="bike" route="R8" depart="30"/>
+    <vehicle id="V17" type="car" route="R1" depart="32"/>
+    <vehicle id="V18" type="car" route="R3" depart="34"/>
+    <vehicle id="V19" type="car" route="R5" depart="36"/>
+    <vehicle id="V20" type="bike" route="R7" depart="38"/>
+
+</routes>
