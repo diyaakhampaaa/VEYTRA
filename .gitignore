@@ -17,3 +17,11 @@ env/
 
 # Generated analytics output
 analytics/output/
+
+__pycache__/
+*.pyc
+
+ai/detection/weights/
+*.pt
+
+.env
