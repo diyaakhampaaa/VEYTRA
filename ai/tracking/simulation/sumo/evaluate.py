@@ -159,7 +159,7 @@ def run_evaluation() -> tuple[dict[str, Any], dict[str, Any]]:
 
     # Hidden GT is intentionally loaded only in this evaluator, after public
     # matching data has been prepared.
-    matcher = CrossCameraMatcher()
+    matcher = CrossCameraMatcher(allow_missing_appearance=True)
     match_result = matcher.match(prepared.get("tracks", []))
     reconstruction = reconstruct(match_result)
     metrics = calculate_metrics(reconstruction, hidden)

@@ -7,3 +7,7 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
+
+# Generated VEYTRA tracking/simulation outputs
+ai/tracking/outputs/
+ai/tracking/simulation/sumo/outputs/*.json
