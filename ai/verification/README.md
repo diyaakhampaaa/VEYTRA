@@ -1,0 +1,171 @@
+# Member 4 — Smart Verification + Self-Correction
+
+VEYTRA's core USP module. Owns VERIFY and CORRECT in the pipeline:
+
+DETECT -> READ -> TRACK -> MATCH (Re-ID) -> **VERIFY -> CORRECT** -> RECONSTRUCT -> ANALYZE -> VISUALIZE -> ALERT
+
+Given a vehicle event, decides whether the plate reading is suspicious,
+searches nearby cameras for supporting evidence, scores how confident
+we are, corrects the record if warranted (while always preserving the
+original reading), and logs every decision for audit.
+
+## Current status
+
+| Component | Status |
+|---|---|
+| Suspicion detection, evidence search, scoring, correction, logging | Complete, tested |
+| FastAPI wrapper (`POST /verify`, `GET /verification-logs`) | Complete |
+| Async/background worker | Complete |
+| Integration with Member 3's real `verification_payloads()` output | Complete, tested (see below) |
+| Camera network + event data (`camera_network.py`, `fake_event_store.py`) | Standalone-testing placeholder only — real pipeline uses Member 3's evidence directly |
+
+## Integration with Member 3 (RESOLVED)
+
+Member 3's `matcher.py` previously rejected any cross-camera match where
+plate text differed, before this module ever saw it. **This is now fixed
+on their end.** Their `ai.tracking.integration.verification_payloads()`
+now surfaces exactly these plate-mismatch cases (with the supporting
+event, `reid_similarity`, and `match_score` attached) instead of
+discarding them.
+
+`integration.py` (new) consumes that real output directly:
+
+```python
+# Member 3's side (not this module):
+# from ai.tracking.integration import verification_payloads
+# payloads = verification_payloads(match_result)
+
+from ai.verification.integration import process_verification_payloads
+results = process_verification_payloads(payloads)  # list of correction results
+```
+
+Note: this module does NOT import `ai.tracking` directly, to stay
+independently testable per the spec -- whoever wires the pipeline
+together (Member 6, or a test) calls Member 3's function first and
+passes the plain-dict output into ours.
+
+For this real-data path, `evidence.py` / `camera_network.py` /
+`fake_event_store.py` are **no longer needed** -- Member 3's matcher
+already does the spatial-temporal evidence search upstream. Those three
+files are kept for standalone testing/demo of this module in isolation.
+
+## Install
+
+```bash
+cd ai/verification
+pip install -r requirements.txt
+```
+
+## Usage
+
+### As Python functions
+```python
+from ai.verification.suspicion import check_suspicion
+from ai.verification.evidence import find_supporting_evidence
+from ai.verification.scoring import find_best_candidate
+from ai.verification.correction import apply_correction
+from ai.verification.logger import log_verification_decision
+
+event = {
+    "event_id": "EVT1023", "camera_id": "C14", "plate": "DL01AB1284",
+    "ocr_confidence": 0.61, "timestamp": "2026-09-06T15:30:00",
+}
+verdict = check_suspicion(event)
+if verdict["is_suspicious"]:
+    supporting = find_supporting_evidence(event)
+    best = find_best_candidate(event["plate"], supporting, reid_similarity=0.93)
+    result = apply_correction(event["event_id"], event["plate"], best, reid_similarity=0.93)
+    log_verification_decision(result, original_confidence=event["ocr_confidence"])
+```
+
+### HTTP API
+```bash
+uvicorn ai.verification.api:app --reload
+```
+```bash
+curl -X POST "http://127.0.0.1:8000/verify" -H "Content-Type: application/json" -d '{
+  "event_id": "EVT1023", "camera_id": "C14", "plate": "DL01AB1284",
+  "ocr_confidence": 0.61, "timestamp": "2026-09-06T15:30:00", "reid_similarity": 0.93
+}'
+```
+
+### Async / background
+```python
+import asyncio
+from ai.verification.worker import verify_many_events_async
+results = asyncio.run(verify_many_events_async([event1, event2, ...]))
+```
+
+## Sample I/O (the USP scenario)
+
+Input:
+```json
+{
+  "event_id": "EVT1023", "camera_id": "C14", "plate": "DL01AB1284",
+  "ocr_confidence": 0.61, "timestamp": "2026-09-06T15:30:00", "reid_similarity": 0.93
+}
+```
+
+Output:
+```json
+{
+  "event_id": "EVT1023",
+  "original_plate": "DL01AB1284",
+  "corrected_plate": "DL01AB1234",
+  "supporting_cameras": ["C13", "C15"],
+  "reid_similarity": 0.93,
+  "verification_confidence": 0.93,
+  "reason": "Neighbouring camera agreement (C13, C15) + high Re-ID similarity"
+}
+```
+
+## Data contract
+
+Input: a vehicle event (`event_id`, `camera_id`, `plate`, `ocr_confidence`,
+`timestamp`, optional `reid_similarity`).
+
+Output: exact shape shown above. If no correction is made,
+`corrected_plate` equals `original_plate`, and `reason` explains why.
+
+## Testing
+
+## Suspicion rules (all three from the spec)
+
+1. **Low OCR confidence** — below a configurable threshold.
+2. **Neighbouring camera disagreement** — fuzzy-matched plate text differs
+   meaningfully from a nearby camera's reading.
+3. **Implausible timing** — the gap between two sightings is too short to
+   be physically possible for the known distance between cameras.
+
+## Testing
+
+```bash
+pytest ai/verification/tests/ -v
+```
+19/19 passing. Covers: all three suspicion rules independently, scoring
+with/without `reid_similarity` (confidence-ceiling fallback), conflicting
+evidence resolution, no-evidence handling, the full USP scenario (wrong
+plate at one camera, correct at two neighbours -> caught, corrected,
+logged), a negative case (lone vehicle / genuinely different vehicle ->
+never force-corrected), Member 3's real `verification_payloads()` data
+shape, the actual `/verify` and `/verification-logs` HTTP endpoints
+(not just the underlying functions), and a timed concurrency test
+proving verification does NOT block the main pipeline even when
+evidence-search is deliberately slowed down.
+
+## Files
+
+```
+ai/verification/
+  suspicion.py         # flags suspicious events (low confidence, neighbour disagreement)
+  camera_network.py    # placeholder camera-connection graph (swap for Member 3's real one)
+  fake_event_store.py  # placeholder event "database" (swap for real PostgreSQL query)
+  evidence.py           # finds nearby supporting events within a travel-time window (standalone/demo only)
+  scoring.py            # combines plate similarity + reid_similarity + evidence count -> confidence
+  correction.py         # decides correct/don't-correct, always preserves original_plate
+  logger.py             # writes verification_logs audit trail
+  integration.py        # adapter for Member 3's real verification_payloads() output
+  api.py                # FastAPI: POST /verify, GET /verification-logs
+  worker.py             # async/background verification path
+  tests/                # pytest suite, incl. test_end_to_end.py (USP scenario) and test_integration.py (real data) test_worker.py (non-blocking proof),     test_api.py (HTTP endpoints)
+```
