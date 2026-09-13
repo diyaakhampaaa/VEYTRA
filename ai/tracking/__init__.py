@@ -7,10 +7,9 @@ require numpy.
 
 from typing import Any
 
-from ai.tracking.tracker import IoUAssociator, PerCameraTracker, track_sequence
+from ai.tracking.tracker import PerCameraTracker, track_sequence
 
 __all__ = [
-    "IoUAssociator",
     "PerCameraTracker",
     "ReIDEmbedder",
     "embed_tracked_frame",

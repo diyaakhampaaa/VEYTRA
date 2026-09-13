@@ -185,6 +185,7 @@ class CrossCameraMatcher:
         weight_appearance: float = WEIGHT_APPEARANCE,
         weight_time: float = WEIGHT_TIME,
         weight_spatial: float = WEIGHT_SPATIAL,
+        allow_missing_appearance: bool = False,
     ) -> None:
         self.min_appearance = min_appearance
         self.max_time_gap = max_time_gap
@@ -194,6 +195,7 @@ class CrossCameraMatcher:
         self.weight_appearance = weight_appearance
         self.weight_time = weight_time
         self.weight_spatial = weight_spatial
+        self.allow_missing_appearance = allow_missing_appearance
 
     def score_pair(self, track_a: Any, track_b: Any) -> dict[str, Any]:
         """Score one pair. Never raises. ``accepted`` is the hard decision."""
@@ -312,7 +314,7 @@ class CrossCameraMatcher:
 
         plate_accept = plate == 1.0
         plate_mismatch = plate == 0.0
-        if appearance is None and not plate_accept:
+        if (appearance is None and not self.allow_missing_appearance and not plate_accept):
             return _score_payload(
                 overall=None,
                 accepted=False,
