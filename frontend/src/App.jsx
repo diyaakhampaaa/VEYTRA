@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 
 import Sidebar from "./components/Sidebar"
@@ -5,7 +6,7 @@ import Sidebar from "./components/Sidebar"
 import LandingPage from "./pages/LandingPage"
 import AuthChoice from "./pages/AuthChoice"
 import Login from "./pages/Login"
-import SignUp from "./pages/Signup"
+import Signup from "./pages/Signup"
 
 import CommandCenter from "./pages/CommandCenter"
 import VehicleSearch from "./pages/VehicleSearch"
@@ -187,6 +188,7 @@ function App() {
       />
 
       <main className="flex-1 p-10">
+      
         {renderPage()}
       </main>
 

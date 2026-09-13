@@ -1,3 +1,4 @@
+import LiveDetectionShowcase from "../components/LiveDetectionShowcase"
 import { useEffect, useState } from "react"
 
 import SourceBadge from "../components/SourceBadge"
@@ -215,6 +216,7 @@ function CommandCenter() {
         </div>
 
       </section>
+      <LiveDetectionShowcase />
 
 
       {/* =====================================================

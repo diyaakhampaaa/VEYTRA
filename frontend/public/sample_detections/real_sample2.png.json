@@ -1,0 +1,49 @@
+{
+  "camera_id": "C01",
+  "timestamp": "2026-09-13T19:07:43.405609+00:00",
+  "source": "real",
+  "detections": [
+    {
+      "vehicle_bbox": [
+        1575,
+        0,
+        1919,
+        429
+      ],
+      "vehicle_type": "Truck",
+      "vehicle_confidence": 0.7680437564849854,
+      "vehicle_detector": "VehicleNet-Y26x",
+      "plate_bbox": null,
+      "plate_confidence": 0.0,
+      "plate_crop": null
+    },
+    {
+      "vehicle_bbox": [
+        314,
+        24,
+        768,
+        562
+      ],
+      "vehicle_type": "Truck",
+      "vehicle_confidence": 0.745474100112915,
+      "vehicle_detector": "VehicleNet-Y26x",
+      "plate_bbox": null,
+      "plate_confidence": 0.0,
+      "plate_crop": null
+    },
+    {
+      "vehicle_bbox": [
+        1416,
+        0,
+        1594,
+        216
+      ],
+      "vehicle_type": "Two-wheeler",
+      "vehicle_confidence": 0.6795779466629028,
+      "vehicle_detector": "VehicleNet-Y26x",
+      "plate_bbox": null,
+      "plate_confidence": 0.0,
+      "plate_crop": null
+    }
+  ]
+}
