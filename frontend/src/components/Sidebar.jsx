@@ -2,106 +2,140 @@ function Sidebar({ activePage, setActivePage }) {
   const pages = [
     {
       id: "command",
-      name: "Command Center",
-      short: "Overview",
-      icon: "◉",
+      label: "Overview",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          width="22"
+          height="22"
+        >
+          <path d="M4 10.5 12 4l8 6.5" />
+          <path d="M6.5 9.5V20h11V9.5" />
+          <path d="M9.5 20v-5.5h5V20" />
+        </svg>
+      ),
     },
+
     {
       id: "vehicles",
-      name: "Vehicle Search",
-      short: "Trajectory",
-      icon: "⌕",
+      label: "Trajectory",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          width="22"
+          height="22"
+        >
+          <path d="M5 18.5c4-1 5.5-6.5 8.5-8.5 1.7-1.2 3.2-1.2 5.5-2" />
+          <path d="M15.5 7.5H19v3.5" />
+        </svg>
+      ),
     },
-    {
-      id: "verification",
-      name: "Smart Verification",
-      short: "Verification",
-      icon: "✓",
-    },
+
     {
       id: "analytics",
-      name: "Traffic Analytics",
-      short: "Traffic",
-      icon: "▥",
+      label: "Traffic",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          width="22"
+          height="22"
+        >
+          <path d="M5 9c2-2 4-2 6 0s4 2 6 0 3-2 3-2" />
+          <path d="M5 14c2-2 4-2 6 0s4 2 6 0 3-2 3-2" />
+        </svg>
+      ),
     },
+
     {
       id: "alerts",
-      name: "Alerts",
-      short: "Alerts",
-      icon: "!",
+      label: "Alerts",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          width="22"
+          height="22"
+        >
+          <path d="M12 5v7" />
+          <circle cx="12" cy="17.5" r=".8" fill="currentColor" />
+        </svg>
+      ),
     },
+
+    {
+      id: "verification",
+      label: "Automation",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          width="22"
+          height="22"
+        >
+          <circle cx="12" cy="12" r="7" />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
+        </svg>
+      ),
+    },
+
     {
       id: "simulation",
-      name: "Simulation",
-      short: "Simulation",
-      icon: "◇",
+      label: "SUMO",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          width="22"
+          height="22"
+        >
+          <circle cx="12" cy="12" r="7" />
+          <path d="M12 5v14M5 12h14" />
+          <circle cx="12" cy="12" r="2" />
+        </svg>
+      ),
     },
   ]
 
   return (
-    <aside className="relative z-40 flex min-h-screen w-[250px] shrink-0 flex-col border-r border-cyan-300/[0.08] bg-[#02070b]/95">
-
-      {/* Subtle grid */}
-      <div className="pointer-events-none absolute inset-0 opacity-[0.025]">
-        <div className="veytra-grid h-full w-full" />
-      </div>
+    <aside className="veytra-sidebar flex min-h-screen shrink-0 flex-col">
 
       {/* =====================================================
-          BRAND
+          LOGO
           ===================================================== */}
 
-      <div className="relative border-b border-cyan-300/[0.08] px-6 py-6">
+      <div className="flex justify-center pt-4 pb-7">
 
-        <div className="flex items-center gap-3">
+        <div className="veytra-sidebar-logo">
 
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-cyan-300/25 bg-cyan-300/[0.04]">
-
-            <div className="relative h-4 w-4 rotate-45 border border-cyan-300/80">
-
-              <div className="absolute inset-1 border border-cyan-300/30" />
-
-            </div>
-
+          <div
+            className="h-3.5 w-3.5 rotate-45 border"
+            style={{
+              borderColor: "rgba(66, 232, 223, 0.9)",
+            }}
+          >
+            <div
+              className="m-[3px] h-full w-full border"
+              style={{
+                borderColor: "rgba(66, 232, 223, 0.35)",
+              }}
+            />
           </div>
-
-          <div>
-
-            <div className="text-base font-bold tracking-[0.28em] text-white">
-              VEYTRA
-            </div>
-
-            <div className="mt-1 text-[7px] uppercase tracking-[0.22em] text-slate-500">
-              City Intelligence Network
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* =====================================================
-          NETWORK STATUS
-          ===================================================== */}
-
-      <div className="relative px-5 pt-5">
-
-        <div className="flex items-center justify-between rounded-lg border border-cyan-300/[0.10] bg-cyan-300/[0.025] px-3 py-2.5">
-
-          <div className="flex items-center gap-2">
-
-            <span className="veytra-live-dot" />
-
-            <span className="text-[8px] uppercase tracking-[0.18em] text-cyan-200/70">
-              Network Active
-            </span>
-
-          </div>
-
-          <span className="text-[8px] text-slate-600">
-            03 NODES
-          </span>
 
         </div>
 
@@ -112,121 +146,56 @@ function Sidebar({ activePage, setActivePage }) {
           NAVIGATION
           ===================================================== */}
 
-      <nav className="relative flex-1 px-4 py-7">
+      <nav className="flex flex-1 flex-col items-center gap-3">
 
-        <div className="mb-3 px-3 text-[8px] font-semibold uppercase tracking-[0.28em] text-slate-600">
-          Operations
-        </div>
+        {pages.map((page) => {
+          const active = activePage === page.id
 
-        <div className="space-y-1">
+          return (
+            <button
+              key={page.id}
+              type="button"
+              onClick={() => setActivePage(page.id)}
+              aria-label={page.label}
+              title={page.label}
+              className={`veytra-nav-item ${
+                active ? "veytra-nav-item-active" : ""
+              }`}
+            >
 
-          {pages.map((page) => {
+              <span className="veytra-nav-icon">
+                {page.icon}
+              </span>
 
-            const active = activePage === page.id
+              <span className="veytra-nav-label">
+                {page.label}
+              </span>
 
-            return (
-              <button
-                key={page.id}
-                onClick={() => setActivePage(page.id)}
-                className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-lg px-3 py-3 text-left transition ${
-                  active
-                    ? "border border-cyan-300/[0.14] bg-cyan-300/[0.06] text-cyan-100"
-                    : "border border-transparent text-slate-500 hover:bg-white/[0.025] hover:text-slate-200"
-                }`}
-              >
-
-                {/* Active glow */}
-                {active && (
-                  <span className="absolute left-0 top-1/2 h-6 w-[2px] -translate-y-1/2 bg-cyan-300 shadow-[0_0_10px_#22d3ee]" />
-                )}
-
-                {/* Icon */}
-                <span
-                  className={`flex h-7 w-7 items-center justify-center rounded-md border text-[12px] transition ${
-                    active
-                      ? "border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-300"
-                      : "border-white/[0.06] bg-white/[0.015] text-slate-600 group-hover:text-slate-300"
-                  }`}
-                >
-                  {page.icon}
-                </span>
-
-                <div className="min-w-0">
-
-                  <div className="text-[10px] font-medium tracking-wide">
-                    {page.name}
-                  </div>
-
-                  <div
-                    className={`mt-0.5 text-[7px] uppercase tracking-[0.15em] ${
-                      active
-                        ? "text-cyan-300/45"
-                        : "text-slate-700"
-                    }`}
-                  >
-                    {page.short}
-                  </div>
-
-                </div>
-
-                {active && (
-                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#22d3ee]" />
-                )}
-
-              </button>
-            )
-          })}
-
-        </div>
+            </button>
+          )
+        })}
 
       </nav>
 
 
       {/* =====================================================
-          SYSTEM FOOTER
+          BOTTOM SYSTEM INDICATOR
           ===================================================== */}
 
-      <div className="relative border-t border-cyan-300/[0.08] p-4">
+      <div className="flex flex-col items-center gap-2 pb-6">
 
-        <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] p-3">
+        <span className="veytra-live-dot veytra-pulse" />
 
-          <div className="flex items-center justify-between">
-
-            <div className="flex items-center gap-2">
-
-              <span className="veytra-live-dot" />
-
-              <span className="text-[8px] uppercase tracking-[0.16em] text-slate-400">
-                System Operational
-              </span>
-
-            </div>
-
-            <span className="text-[7px] text-slate-700">
-              v1.0
-            </span>
-
-          </div>
-
-          <div className="mt-3 flex items-center justify-between text-[7px] uppercase tracking-[0.15em] text-slate-700">
-
-            <span>API</span>
-            <span className="text-cyan-300/50">CONNECTED</span>
-
-          </div>
-
-          <div className="mt-1 flex items-center justify-between text-[7px] uppercase tracking-[0.15em] text-slate-700">
-
-            <span>PIPELINE</span>
-            <span className="text-cyan-300/50">ACTIVE</span>
-
-          </div>
-
-        </div>
-
-        <div className="mt-4 text-center text-[7px] uppercase tracking-[0.22em] text-slate-700">
-          VEYTRA // SIH 2026
-        </div>
+        <span
+          className="text-center uppercase"
+          style={{
+            color: "var(--veytra-dim)",
+            fontSize: "8px",
+            letterSpacing: "0.12em",
+          }}
+        >
+          Online
+        </span>
 
       </div>
 

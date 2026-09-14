@@ -3,10 +3,8 @@ function SourceBadge({ source }) {
 
   return (
     <span
-      className={`px-2 py-1 rounded-full text-xs font-medium ${
-        isReal
-          ? "bg-green-500/20 text-green-400"
-          : "bg-yellow-500/20 text-yellow-400"
+      className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+        isReal ? "veytra-pill-real" : "veytra-pill-sim"
       }`}
     >
       {isReal ? "Real" : "Simulated"}

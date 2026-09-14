@@ -1,12 +1,12 @@
-
 import { useState } from "react"
 
 import Sidebar from "./components/Sidebar"
+import TopBar from "./components/TopBar"
 
 import LandingPage from "./pages/LandingPage"
 import AuthChoice from "./pages/AuthChoice"
 import Login from "./pages/Login"
-import Signup from "./pages/Signup"
+import SignUp from "./pages/SignUp"
 
 import CommandCenter from "./pages/CommandCenter"
 import VehicleSearch from "./pages/VehicleSearch"
@@ -15,36 +15,15 @@ import TrafficAnalytics from "./pages/TrafficAnalytics"
 import Alerts from "./pages/Alerts"
 import SimulationComparison from "./pages/SimulationComparison"
 
-
 function App() {
-  // --------------------------------
-  // APPLICATION STATE
-  // --------------------------------
-
   const [isEntered, setIsEntered] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-
-  // Controls the authentication screen:
-  // "choice" → choose Login or Signup
-  // "login"  → Login page
-  // "signup" → Signup page
   const [authPage, setAuthPage] = useState("choice")
-
-  // Stores the page the user wanted to visit
-  // before authentication.
   const [pendingPage, setPendingPage] = useState("command")
-
-  // Current dashboard page
   const [activePage, setActivePage] = useState("command")
-
-
-  // --------------------------------
-  // DASHBOARD PAGE ROUTER
-  // --------------------------------
 
   const renderPage = () => {
     switch (activePage) {
-
       case "vehicles":
         return <VehicleSearch />
 
@@ -66,135 +45,86 @@ function App() {
     }
   }
 
-
-  // --------------------------------
-  // LANDING PAGE
-  // --------------------------------
-
   if (!isEntered) {
     return (
       <LandingPage
-
-        // Authorized Access button
         onEnter={() => {
           setIsEntered(true)
           setAuthPage("choice")
         }}
-
-        // Landing-page navigation
         onNavigate={(page) => {
           setPendingPage(page)
           setIsEntered(true)
           setAuthPage("choice")
         }}
-
       />
     )
   }
 
-
-  // --------------------------------
-  // AUTHENTICATION
-  // --------------------------------
-
   if (!isLoggedIn) {
-
-    // ==============================
-    // LOGIN / SIGNUP CHOICE
-    // ==============================
-
     if (authPage === "choice") {
       return (
         <AuthChoice
-
           onLogin={() => {
             setAuthPage("login")
           }}
-
           onSignup={() => {
             setAuthPage("signup")
           }}
-
           onBack={() => {
             setIsEntered(false)
           }}
-
         />
       )
     }
-
-
-    // ==============================
-    // LOGIN
-    // ==============================
 
     if (authPage === "login") {
       return (
         <Login
-
           onLogin={() => {
             setIsLoggedIn(true)
-
-            // Take the user to the page
-            // they originally selected.
             setActivePage(pendingPage)
           }}
-
           onGoToSignup={() => {
             setAuthPage("signup")
           }}
-
         />
       )
     }
 
-
-    // ==============================
-    // SIGNUP
-    // ==============================
-
     if (authPage === "signup") {
       return (
-        <Signup
-
+        <SignUp
           onSignup={() => {
             setIsLoggedIn(true)
-
-            // Take the new user to the
-            // page they originally selected.
             setActivePage(pendingPage)
           }}
-
           onGoToLogin={() => {
             setAuthPage("login")
           }}
-
         />
       )
     }
   }
 
-
-  // --------------------------------
-  // VEYTRA DASHBOARD
-  // --------------------------------
-
   return (
-    <div className="flex min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-[var(--veytra-bg)] text-[var(--veytra-text)]">
+      {/* TOP SYSTEM BAR */}
+      <TopBar activePage={activePage} />
 
-      <Sidebar
-        activePage={activePage}
-        setActivePage={setActivePage}
-      />
+      {/* SIDEBAR + MAIN CONTENT */}
+      <div className="flex min-h-[calc(100vh-88px)]">
+        <Sidebar
+          activePage={activePage}
+          setActivePage={setActivePage}
+        />
 
-      <main className="flex-1 p-10">
-      
-        {renderPage()}
-      </main>
-
+        <main className="min-w-0 flex-1 px-8 py-7 lg:px-10">
+          {renderPage()}
+        </main>
+      </div>
     </div>
   )
 }
-
 
 export default App

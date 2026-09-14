@@ -1,45 +1,32 @@
 import { useEffect, useState } from "react"
 import SourceBadge from "./SourceBadge"
 
-function MapView() {
+function MapView({ cameras: backendCameras = [] }) {
   const [selectedCamera, setSelectedCamera] = useState(null)
   const [selectedVehicle, setSelectedVehicle] = useState(null)
   const [simulationRunning, setSimulationRunning] = useState(true)
   const [tick, setTick] = useState(0)
 
-  const cameras = [
-    {
-      id: "CAM_01",
-      x: "20%",
-      y: "65%",
-      vehicles: 12,
-      status: "ACTIVE",
-      location: "NEHRU PLACE",
-      road: "MAIN ROAD",
-      coverage: "92%",
-    },
-    {
-      id: "CAM_02",
-      x: "50%",
-      y: "35%",
-      vehicles: 8,
-      status: "ACTIVE",
-      location: "RING ROAD",
-      road: "RING ROAD",
-      coverage: "87%",
-    },
-    {
-      id: "CAM_03",
-      x: "78%",
-      y: "65%",
-      vehicles: 15,
-      status: "ACTIVE",
-      location: "ITO",
-      road: "ITO CORRIDOR",
-      coverage: "95%",
-    },
-  ]
+  const cameras = backendCameras.map((camera, index) => {
+    const positions = [
+      { x: "20%", y: "65%" },
+      { x: "50%", y: "35%" },
+      { x: "78%", y: "65%" },
+    ]
 
+    const position = positions[index] || positions[0]
+
+    return {
+      id: camera.camera_id,
+      x: position.x,
+      y: position.y,
+      vehicles: camera.vehicles_detected || 0,
+      status: camera.status?.toUpperCase() || "ACTIVE",
+      location: `BENGALURU NODE ${index + 1}`,
+      road: "SIMULATED CORRIDOR",
+      coverage: "—",
+    }
+  })
   const vehicles = [
     {
       id: "V1",
