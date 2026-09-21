@@ -1248,32 +1248,47 @@ function TrafficAnalytics() {
         ===================================================== */}
 
         <div
-          className="relative min-h-[620px] overflow-hidden rounded-2xl border border-white/10"
-          style={{
-            background:
-              "#020202",
-          }}
-        >
+  className="relative min-h-[620px] overflow-hidden rounded-2xl border border-cyan-400/10"
+  style={{
+    background:
+      "radial-gradient(circle at 50% 45%, rgba(8,45,58,0.35) 0%, rgba(2,7,11,0.96) 58%, #010306 100%)",
+    boxShadow:
+      "inset 0 0 80px rgba(0,0,0,0.85), 0 0 35px rgba(0,200,255,0.05)",
+  }}
+>
+        
 
 
           {/* SUBTLE ATMOSPHERIC BACKGROUND */}
 
           <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(circle at 50% 45%, rgba(255,30,0,0.06), transparent 58%)",
-            }}
-          />
+  className="pointer-events-none absolute inset-0"
+  style={{
+    background: `
+      radial-gradient(circle at 50% 45%, rgba(0,220,255,0.10), transparent 48%),
+      linear-gradient(rgba(0,220,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,220,255,0.025) 1px, transparent 1px)
+    `,
+    backgroundSize: "100% 100%, 32px 32px, 32px 32px",
+    maskImage:
+      "radial-gradient(circle at center, black 35%, transparent 90%)",
+  }}
+/>
 
 
           {/* HEADER */}
 
-          <div className="absolute left-6 top-5 z-30 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">
+          <div className="absolute left-6 top-5 z-30 flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.2em] text-cyan-300/70">
+  <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />
 
-            VEYTRA / BENGALURU TRAFFIC FIELD
+  <span>
+    VEYTRA / BENGALURU TRAFFIC FIELD
+  </span>
 
-          </div>
+  <span className="border border-cyan-400/20 bg-cyan-400/5 px-2 py-1 text-[7px] text-cyan-300/60">
+    SPATIAL AI
+  </span>
+</div>
 
 
           <div className="absolute right-6 top-5 z-30 font-mono text-[9px] uppercase tracking-[0.18em] text-white/35">
@@ -1389,7 +1404,7 @@ function TrafficAnalytics() {
                 >
 
                   <feGaussianBlur
-                    stdDeviation="18"
+                    stdDeviation="16"
                   />
 
                 </filter>
@@ -1404,7 +1419,7 @@ function TrafficAnalytics() {
                 >
 
                   <feGaussianBlur
-                    stdDeviation="35"
+                    stdDeviation="28"
                   />
 
                 </filter>
@@ -1443,10 +1458,10 @@ function TrafficAnalytics() {
                   L 165 180
                   Z
                 "
-                fill="#030303"
-                stroke="#eeeeee"
-                strokeWidth="2"
-                strokeOpacity="0.85"
+               fill="rgba(3,12,17,0.72)"
+stroke="#38d9ff"
+strokeWidth="1.5"
+strokeOpacity="0.35"
               />
 
 
@@ -1455,12 +1470,11 @@ function TrafficAnalytics() {
               ================================================= */}
 
               <g
-                fill="none"
-                stroke="#ffffff"
-                strokeOpacity="0.28"
-                strokeWidth="3"
-              >
-
+  fill="none"
+  stroke="#38d9ff"
+  strokeOpacity="0.16"
+  strokeWidth="3"
+>
                 {/* North → South */}
 
                 <path d="M440 65 C430 170 425 270 415 370 C405 480 410 570 430 650" />
@@ -1494,8 +1508,8 @@ function TrafficAnalytics() {
 
               <g
                 fill="none"
-                stroke="#ffffff"
-                strokeOpacity="0.18"
+                stroke="#38d9ff"
+                strokeOpacity="0.22"
                 strokeWidth="1"
                 strokeDasharray="6 8"
               >

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { searchVehicle } from "../api/client"
 import SourceBadge from "../components/SourceBadge"
 import MatchScoreBreakdown from "../components/MatchScoreBreakdown"
+import TrajectoryMap from "../components/TrajectoryMap"
 
 function VehicleSearch() {
   const [plate, setPlate] = useState("")
@@ -380,7 +381,20 @@ function VehicleSearch() {
             </div>
 
 
-            {/* Timeline */}
+            {/* =================================================
+                PROJECTED TRAJECTORY MAP
+                ================================================= */}
+
+            <div className="mt-6">
+
+              <TrajectoryMap />
+
+            </div>
+
+
+            {/* =================================================
+                TIMELINE
+                ================================================= */}
 
             <div className="relative mt-8">
 

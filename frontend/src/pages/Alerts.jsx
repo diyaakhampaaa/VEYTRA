@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import SourceBadge from "../components/SourceBadge"
+import LiveDetectionShowcase from "../components/LiveDetectionShowcase"
 import { getAlerts } from "../api/client"
 
 function Alerts() {
@@ -52,13 +53,12 @@ function Alerts() {
         alert.category ||
         "TRAFFIC EVENT",
 
-      severity:
-        String(
-          alert.severity ||
-            alert.priority ||
-            alert.level ||
-            "MEDIUM"
-        ).toUpperCase(),
+      severity: String(
+        alert.severity ||
+          alert.priority ||
+          alert.level ||
+          "MEDIUM"
+      ).toUpperCase(),
 
       message:
         alert.message ||
@@ -131,7 +131,7 @@ function Alerts() {
       badge:
         "border-cyan-400/20 bg-cyan-400/[0.04] text-cyan-300",
       dot: "bg-cyan-300 shadow-[0_0_9px_rgba(34,211,238,0.7)]",
-      line: "border-l-cyan-400/50",
+      line: "border-l-cyan-300/50",
     }
   }
 
@@ -172,7 +172,6 @@ function Alerts() {
       </div>
 
       <div className="pointer-events-none absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-400/[0.025] blur-3xl" />
-
 
       {/* Header */}
 
@@ -280,6 +279,11 @@ function Alerts() {
         </div>
 
       </section>
+
+
+      {/* Live Detection Feed */}
+
+      <LiveDetectionShowcase />
 
 
       {/* Alert console */}
