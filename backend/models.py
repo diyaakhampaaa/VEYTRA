@@ -12,10 +12,7 @@ class Camera(Base):
     vehicles_detected = Column(Integer, default=0)
     source = Column(String, nullable=False)
 
-    location = Column(
-        Geometry("POINT", srid=4326),
-        nullable=True
-    )
+    location = Column(String, nullable=True)
 
 
 class Vehicle(Base):
@@ -44,6 +41,13 @@ class VehicleCameraEvent(Base):
 
     timestamp = Column(String, nullable=False)
     direction = Column(String, nullable=True)
+
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    road_segment_id = Column(String, nullable=True)
+    road_name = Column(String, nullable=True)
+    speed_kmh = Column(Float, nullable=True)
+    trajectory_id = Column(String, nullable=True)
 
 class DetectionEvent(Base):
     __tablename__ = "detection_events"

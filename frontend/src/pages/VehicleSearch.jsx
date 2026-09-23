@@ -40,6 +40,12 @@ function VehicleSearch() {
 
   const vehicle = result?.vehicle
 
+  const uniqueCameraCount = vehicle?.camera_sequence
+    ? new Set(
+        vehicle.camera_sequence.map((camera) => camera.camera_id)
+      ).size
+    : 0
+
   return (
     <div className="relative min-h-screen overflow-hidden">
 
@@ -344,7 +350,7 @@ function VehicleSearch() {
                 </div>
 
                 <div className="mt-2 text-sm font-semibold text-cyan-200">
-                  {vehicle.camera_sequence?.length || 0} NODES
+                  {uniqueCameraCount} {uniqueCameraCount === 1 ? "NODE" : "NODES"}
                 </div>
 
               </div>
@@ -387,93 +393,7 @@ function VehicleSearch() {
 
             <div className="mt-6">
 
-              <TrajectoryMap />
-
-            </div>
-
-
-            {/* =================================================
-                TIMELINE
-                ================================================= */}
-
-            <div className="relative mt-8">
-
-              {/* Connecting line */}
-
-              <div className="absolute left-5 right-5 top-5 hidden h-px bg-gradient-to-r from-cyan-300/10 via-cyan-300/30 to-cyan-300/10 sm:block" />
-
-
-              <div className="grid gap-4 sm:grid-cols-3">
-
-                {vehicle.camera_sequence?.map((camera, index) => (
-
-                  <div
-                    key={`${camera.camera_id}-${camera.timestamp}-${index}`}
-                    className="relative rounded-lg border border-white/[0.06] bg-[#02080c] p-4 transition hover:border-cyan-300/20"
-                  >
-
-                    <div className="flex items-center justify-between">
-
-                      <div className="flex items-center gap-3">
-
-                        <div className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border border-cyan-300/30 bg-[#02070b]">
-
-                          <span className="text-[9px] font-semibold text-cyan-300">
-                            0{index + 1}
-                          </span>
-
-                        </div>
-
-                        <div>
-
-                          <div className="font-mono text-xs font-semibold text-slate-200">
-                            {camera.camera_id}
-                          </div>
-
-                          <div className="mt-1 text-[7px] uppercase tracking-[0.15em] text-cyan-300/40">
-                            Camera Node
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                    </div>
-
-
-                    <div className="mt-5 border-t border-white/[0.05] pt-4">
-
-                      <div className="flex justify-between">
-
-                        <span className="text-[7px] uppercase tracking-[0.16em] text-slate-700">
-                          Timestamp
-                        </span>
-
-                        <span className="font-mono text-[9px] text-slate-400">
-                          {camera.timestamp}
-                        </span>
-
-                      </div>
-
-                      <div className="mt-3 flex justify-between">
-
-                        <span className="text-[7px] uppercase tracking-[0.16em] text-slate-700">
-                          Direction
-                        </span>
-
-                        <span className="text-[9px] uppercase tracking-[0.1em] text-cyan-200/60">
-                          {camera.direction}
-                        </span>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                ))}
-
-              </div>
+              <TrajectoryMap cameraSequence={vehicle.camera_sequence} />
 
             </div>
 

@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from backend.database import SessionLocal
-from backend.models import Vehicle, VehicleCameraEvent, Camera
+from backend.models import Vehicle, VehicleCameraEvent
 
 router = APIRouter(prefix="/vehicles", tags=["Vehicles"])
 
@@ -43,33 +42,23 @@ def search_vehicle(
     camera_sequence = []
 
     for event in events:
-        camera = (
-            db.query(Camera)
-            .filter(Camera.camera_id == event.camera_id)
-            .first()
-        )
-
         location = None
 
-        if camera and camera.location is not None:
-            longitude = db.query(
-                func.ST_X(camera.location)
-            ).scalar()
-
-            latitude = db.query(
-                func.ST_Y(camera.location)
-            ).scalar()
-
+        if event.latitude is not None and event.longitude is not None:
             location = {
-                "longitude": float(longitude),
-                "latitude": float(latitude)
+                "latitude": event.latitude,
+                "longitude": event.longitude
             }
 
         camera_sequence.append({
             "camera_id": event.camera_id,
             "timestamp": event.timestamp,
             "direction": event.direction,
-            "location": location
+            "location": location,
+            "road_segment_id": event.road_segment_id,
+            "road_name": event.road_name,
+            "speed_kmh": event.speed_kmh,
+            "trajectory_id": event.trajectory_id
         })
 
     return {

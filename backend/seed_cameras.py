@@ -1,7 +1,6 @@
 from backend.database import SessionLocal
 from backend.models import Camera
 
-
 db = SessionLocal()
 
 try:
@@ -10,19 +9,22 @@ try:
             camera_id="CAM_01",
             status="Active",
             vehicles_detected=12,
-            source="simulated"
+            source="simulated",
+            location="28.6139,77.2090",
         ),
         Camera(
             camera_id="CAM_02",
             status="Active",
             vehicles_detected=8,
-            source="simulated"
+            source="simulated",
+            location="28.6170,77.2150",
         ),
         Camera(
             camera_id="CAM_03",
             status="Active",
             vehicles_detected=15,
-            source="simulated"
+            source="simulated",
+            location="28.6130,77.2210",
         ),
     ]
 
