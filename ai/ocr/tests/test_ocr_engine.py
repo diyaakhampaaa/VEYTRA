@@ -1,7 +1,8 @@
-"""Unit tests for Member 2 READ-stage OCR (PaddleOCR is mocked)."""
+"""Unit tests for Member 2 READ-stage OCR."""
 
 from __future__ import annotations
 
+import base64
 import sys
 from pathlib import Path
 
@@ -74,7 +75,9 @@ def test_unreadable_black_crop_returns_failed_contract(monkeypatch):
     result = read_plate(black)
     _contract(result)
     assert result == FAILED or (
-        result["plate"] is None and result["confidence"] == 0.0 and result["alternatives"] == []
+        result["plate"] is None
+        and result["confidence"] == 0.0
+        and result["alternatives"] == []
     )
 
 
@@ -101,7 +104,10 @@ def test_tiny_crop_is_upscaled_during_preprocess():
 
 
 def test_valid_ocr_read_matches_contract(monkeypatch):
-    monkeypatch.setattr("ai.ocr.ocr_engine.recognize_text", lambda _img: ("DL 01 AB 1234", 0.94))
+    monkeypatch.setattr(
+        "ai.ocr.ocr_engine.recognize_text",
+        lambda _img: ("DL 01 AB 1234", 0.94),
+    )
     crop = np.full((60, 200, 3), 180, dtype=np.uint8)
     crop[:, 20:30] = 20
     result = read_plate(crop)
@@ -112,7 +118,10 @@ def test_valid_ocr_read_matches_contract(monkeypatch):
 
 
 def test_invalid_ocr_string_is_not_silently_corrected(monkeypatch):
-    monkeypatch.setattr("ai.ocr.ocr_engine.recognize_text", lambda _img: ("XXXXNOTPLATE", 0.99))
+    monkeypatch.setattr(
+        "ai.ocr.ocr_engine.recognize_text",
+        lambda _img: ("XXXXNOTPLATE", 0.99),
+    )
     crop = np.full((60, 200, 3), 180, dtype=np.uint8)
     crop[:, 20:30] = 20
     result = read_plate(crop)
@@ -123,7 +132,10 @@ def test_invalid_ocr_string_is_not_silently_corrected(monkeypatch):
 
 
 def test_low_confidence_emits_confusion_alternatives(monkeypatch):
-    monkeypatch.setattr("ai.ocr.ocr_engine.recognize_text", lambda _img: ("DL01AB1284", 0.51))
+    monkeypatch.setattr(
+        "ai.ocr.ocr_engine.recognize_text",
+        lambda _img: ("DL01AB1284", 0.51),
+    )
     crop = np.full((60, 200, 3), 180, dtype=np.uint8)
     crop[:, 20:30] = 20
     result = read_plate(crop)
@@ -132,20 +144,67 @@ def test_low_confidence_emits_confusion_alternatives(monkeypatch):
     assert "DL01AB1234" in result["alternatives"]
 
 
-def test_fastapi_post_ocr(monkeypatch):
-    from ai.ocr.api import app
+def test_fastapi_post_ocr_with_member1_detection_contract(monkeypatch):
+    """M1 base64 crop + metadata should become an enriched M2 event."""
 
     monkeypatch.setattr(
         "ai.ocr.api.read_plate",
-        lambda _payload: {"plate": "DL01AB1234", "confidence": 0.94, "alternatives": ["DL01AB1284"]},
+        lambda _payload: {
+            "plate": "DL01AB1234",
+            "confidence": 0.94,
+            "alternatives": ["DL01AB1284"],
+        },
     )
-    client = TestClient(app)
-    files = {"file": ("crop1.jpg", b"fake-bytes", "image/jpeg")}
-    response = client.post("/ocr", files=files)
+
+    client = TestClient(__import__("ai.ocr.api", fromlist=["app"]).app)
+
+    fake_crop = base64.b64encode(b"fake-jpeg-bytes").decode("utf-8")
+
+    response = client.post(
+        "/ocr",
+        data={
+            "event_id": "event-123",
+            "camera_id": "CAM_01",
+            "timestamp": "2026-09-23T10:00:00",
+            "source": "real",
+            "plate_crop": fake_crop,
+            "vehicle_type": "car",
+            "vehicle_confidence": "0.91",
+        },
+    )
+
     assert response.status_code == 200
+
     body = response.json()
+
     assert body == {
-        "plate": "DL01AB1234",
-        "confidence": 0.94,
+        "event_id": "event-123",
+        "camera_id": "CAM_01",
+        "timestamp": "2026-09-23T10:00:00",
+        "source": "real",
+        "vehicle_type": "car",
+        "vehicle_confidence": 0.91,
+        "plate_number": "DL01AB1234",
+        "ocr_confidence": 0.94,
         "alternatives": ["DL01AB1284"],
     }
+
+
+def test_fastapi_post_ocr_rejects_invalid_base64():
+    """Malformed plate crops must be rejected before OCR is called."""
+
+    client = TestClient(__import__("ai.ocr.api", fromlist=["app"]).app)
+
+    response = client.post(
+        "/ocr",
+        data={
+            "event_id": "event-456",
+            "camera_id": "CAM_02",
+            "timestamp": "2026-09-23T10:01:00",
+            "source": "simulated",
+            "plate_crop": "not-valid-base64!!!",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "plate_crop is not valid base64"
