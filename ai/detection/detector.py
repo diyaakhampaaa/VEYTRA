@@ -9,6 +9,7 @@ import base64
 import logging
 import os
 import time
+import uuid
 
 import cv2
 import numpy as np
@@ -328,20 +329,22 @@ def detect(
     """
     Runs vehicle + plate detection on a single frame.
 
-    Returns:
+        Returns:
         {
             "camera_id": str,
             "timestamp": str,
             "source": str,
             "detections": [
                 {
+                    "event_id": str,
+                    "camera_id": str,
+                    "timestamp": str,
                     "vehicle_bbox": [x1, y1, x2, y2],
                     "vehicle_type": str,
                     "vehicle_confidence": float,
                     "vehicle_detector": str,
                     "plate_bbox": [x1, y1, x2, y2] | None,
-                    "plate_confidence": float,
-                    "plate_crop": str | None
+                    ...
                 }
             ]
         }
@@ -393,7 +396,6 @@ def detect(
     # ---------------------------------------------------------
     # PLATE DETECTION + OCR HANDOFF
     # ---------------------------------------------------------
-
     detections = []
 
     for veh in vehicle_detections:
@@ -404,11 +406,7 @@ def detect(
             )
 
             plate_bbox = plate_result["plate_bbox"]
-
-            plate_confidence = float(
-                plate_result["plate_confidence"]
-            )
-
+            plate_confidence = float(plate_result["plate_confidence"])
             plate_crop = plate_result["plate_crop"]
 
         except Exception:
@@ -424,18 +422,24 @@ def detect(
 
         detections.append(
             {
+                "event_id": str(uuid.uuid4()),
+                "camera_id": camera_id,
+                "timestamp": timestamp,
+                # vehicle_id is intentionally NOT set here — a consistent
+                # vehicle_id requires cross-frame/cross-camera matching,
+                # which is Member 3's tracking output, not something a
+                # single-frame detector can determine. Member 3 attaches
+                # vehicle_id downstream by grouping event_ids together.
                 "vehicle_bbox": veh["vehicle_bbox"],
                 "vehicle_type": veh["vehicle_type"],
-                "vehicle_confidence": float(
-                    veh["vehicle_confidence"]
-                ),
+                "vehicle_confidence": float(veh["vehicle_confidence"]),
                 "vehicle_detector": veh["vehicle_detector"],
                 "plate_bbox": plate_bbox,
                 "plate_confidence": plate_confidence,
                 "plate_crop": plate_crop,
             }
         )
-
+    
     # ---------------------------------------------------------
     # RETURN RESULT
     # ---------------------------------------------------------
