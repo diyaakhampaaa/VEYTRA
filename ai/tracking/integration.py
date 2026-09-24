@@ -16,6 +16,7 @@ from collections import defaultdict
 from typing import Any, Iterable
 
 from .matcher import CrossCameraMatcher
+from .reconstruct import TrajectoryReconstructor
 from .reid import ReIDEmbedder, embed_tracked_frame
 from .tracker import PerCameraTracker
 
@@ -61,10 +62,14 @@ def prepare_track_records(tracked_frames: Iterable[dict[str, Any]]) -> list[dict
     """Aggregate Member 1/2/3 frame outputs into matcher-ready local tracks.
 
     Expected per-frame shape is the normal Member 1 detection contract after
-    Member 3 tracking/Re-ID, e.g. each detection contains ``local_track_id``,
-    ``embedding`` and optionally Member 2's ``plate``, ``confidence`` and
-    ``alternatives``. The returned records are camera-local tracks with
-    ``first_timestamp``/``last_timestamp`` and a representative OCR read.
+    Member 3 tracking/Re-ID, e.g. each detection contains ``event_id``,
+    ``local_track_id``, ``embedding`` and optionally Member 2's ``plate``,
+    ``confidence`` and ``alternatives``.
+
+    Original Member 1 event identity is preserved through aggregation using:
+
+    - ``event_ids``: ordered list of source event IDs.
+    - ``observations``: event-level observation records.
 
     A track's plate history is retained rather than silently forcing one OCR
     value. The highest-confidence valid read becomes ``plate_text``.
@@ -74,80 +79,179 @@ def prepare_track_records(tracked_frames: Iterable[dict[str, Any]]) -> list[dict
     for frame in tracked_frames:
         if not isinstance(frame, dict):
             continue
+
         camera_id = frame.get("camera_id")
         timestamp = frame.get("timestamp")
         detections = frame.get("detections")
+
         if camera_id is None or timestamp is None or not isinstance(detections, list):
             continue
 
         for det in detections:
             if not isinstance(det, dict) or det.get("local_track_id") is None:
                 continue
+
             key = (str(camera_id), str(det["local_track_id"]))
+
             row = dict(det)
             row["_camera_id"] = camera_id
             row["_timestamp"] = timestamp
             row["_source"] = frame.get("source")
+
             groups[key].append(row)
 
     records: list[dict[str, Any]] = []
+
     for (camera_id, local_track_id), rows in groups.items():
         rows.sort(key=lambda row: str(row["_timestamp"]))
+
         first = rows[0]
         last = rows[-1]
 
+        # ---------------------------------------------------------
+        # Re-ID embedding aggregation
+        # ---------------------------------------------------------
         embeddings: list[list[float]] = []
+
         for row in rows:
             value = row.get("embedding")
+
             if isinstance(value, (list, tuple)) and value:
                 try:
                     vector = [float(x) for x in value]
                 except (TypeError, ValueError):
                     continue
+
                 embeddings.append(vector)
 
         embedding = None
-        if embeddings and all(len(v) == len(embeddings[0]) for v in embeddings):
+
+        if embeddings and all(
+            len(v) == len(embeddings[0]) for v in embeddings
+        ):
             mean = [
                 sum(vector[i] for vector in embeddings) / len(embeddings)
                 for i in range(len(embeddings[0]))
             ]
+
             embedding = _normalise_embedding(mean)
 
+        # ---------------------------------------------------------
+        # Preserve original event identity
+        # ---------------------------------------------------------
+        event_ids: list[str] = []
+        observations: list[dict[str, Any]] = []
+
+        for row in rows:
+            event_id = row.get("event_id")
+
+            observation: dict[str, Any] = {
+                "event_id": event_id,
+                "camera_id": row.get("_camera_id"),
+                "local_track_id": row.get("local_track_id"),
+                "timestamp": row.get("_timestamp"),
+                "source": row.get("_source"),
+            }
+
+            # Preserve OCR information at event level.
+            plate, confidence, alternatives = _ocr_fields(row)
+
+            observation["plate"] = plate
+            observation["ocr_confidence"] = (
+                confidence if confidence is not None else 0.0
+            )
+            observation["alternatives"] = alternatives
+
+            # Preserve optional GIS / traffic fields.
+            for field in (
+                "road_segment_id",
+                "direction",
+                "latitude",
+                "longitude",
+            ):
+                if row.get(field) is not None:
+                    observation[field] = row.get(field)
+
+            observations.append(observation)
+
+            if event_id is not None:
+                event_ids.append(str(event_id))
+
+        # ---------------------------------------------------------
+        # OCR history
+        # ---------------------------------------------------------
         plate_reads: list[dict[str, Any]] = []
+
         for row in rows:
             plate, confidence, alternatives = _ocr_fields(row)
+
             if plate:
                 plate_reads.append(
                     {
+                        "event_id": row.get("event_id"),
                         "plate": plate,
-                        "confidence": confidence if confidence is not None else 0.0,
+                        "confidence": (
+                            confidence if confidence is not None else 0.0
+                        ),
                         "alternatives": alternatives,
                         "timestamp": row["_timestamp"],
                     }
                 )
 
-        best_read = max(plate_reads, key=lambda item: item["confidence"], default=None)
+        best_read = max(
+            plate_reads,
+            key=lambda item: item["confidence"],
+            default=None,
+        )
 
+        # ---------------------------------------------------------
+        # Build matcher-ready local-track record
+        # ---------------------------------------------------------
         record: dict[str, Any] = {
             "camera_id": camera_id,
             "local_track_id": first.get("local_track_id"),
             "first_timestamp": first["_timestamp"],
             "last_timestamp": last["_timestamp"],
             "source": first.get("_source"),
+
             "embedding": embedding,
+
             "plate_text": best_read["plate"] if best_read else None,
-            "ocr_confidence": best_read["confidence"] if best_read else None,
-            "plate_alternatives": best_read["alternatives"] if best_read else [],
+            "ocr_confidence": (
+                best_read["confidence"] if best_read else None
+            ),
+            "plate_alternatives": (
+                best_read["alternatives"] if best_read else []
+            ),
+
             "plate_history": plate_reads,
+
+            # NEW: preserve original Member 1 event identity.
+            "event_ids": event_ids,
+            "observations": observations,
+
             "observation_count": len(rows),
         }
 
         # Preserve optional road/direction/location fields from upstream.
-        for field in ("road_segment_id", "direction", "latitude", "longitude"):
-            values = [row.get(field) for row in rows if row.get(field) is not None]
+        for field in (
+            "road_segment_id",
+            "direction",
+            "latitude",
+            "longitude",
+        ):
+            values = [
+                row.get(field)
+                for row in rows
+                if row.get(field) is not None
+            ]
+
             if values:
-                record[field] = values[-1] if field in ("latitude", "longitude") else values[0]
+                record[field] = (
+                    values[-1]
+                    if field in ("latitude", "longitude")
+                    else values[0]
+                )
 
         records.append(record)
 
@@ -158,6 +262,7 @@ def prepare_track_records(tracked_frames: Iterable[dict[str, Any]]) -> list[dict
             str(row.get("local_track_id", "")),
         )
     )
+
     return records
 
 
@@ -180,13 +285,62 @@ def track_and_enrich_frame(
 def match_tracked_frames(
     tracked_frames: Iterable[dict[str, Any]],
     matcher: CrossCameraMatcher | None = None,
+    reconstructor: TrajectoryReconstructor | None = None,
 ) -> dict[str, Any]:
-    """Prepare completed tracks and run the cross-camera matcher."""
+    """
+    Prepare completed tracks, run cross-camera matching, and reconstruct
+    ordered vehicle trajectories.
+
+    Pipeline:
+        Member 1/2/3 frame outputs
+            -> completed local tracks
+            -> cross-camera vehicle identity
+            -> ordered trajectories
+
+    The original matcher result is preserved. Trajectory reconstruction
+    is added as a downstream M3 stage.
+    """
+
     records = prepare_track_records(tracked_frames)
-    matcher_obj = matcher if matcher is not None else CrossCameraMatcher()
+
+    matcher_obj = (
+        matcher
+        if matcher is not None
+        else CrossCameraMatcher()
+    )
+
     result = matcher_obj.match(records)
+
+    # ---------------------------------------------------------
+    # Trajectory reconstruction
+    # ---------------------------------------------------------
+    reconstructor_obj = (
+        reconstructor
+        if reconstructor is not None
+        else TrajectoryReconstructor()
+    )
+
+    trajectory_result = reconstructor_obj.reconstruct(
+        result
+    )
+
+    # ---------------------------------------------------------
+    # Preserve all existing matcher outputs and add the
+    # reconstructed trajectory layer.
+    # ---------------------------------------------------------
     result["track_records"] = records
+    result["trajectories"] = trajectory_result.get(
+        "trajectories",
+        [],
+    )
+    result["trajectory_skipped"] = trajectory_result.get(
+        "skipped",
+        [],
+    )
+
     return result
+
+
 
 
 def verification_payloads(match_result: dict[str, Any]) -> list[dict[str, Any]]:

@@ -209,3 +209,88 @@ def test_deterministic_order_when_timestamps_are_identical():
         ]
     )
     assert again == result
+
+def test_event_ids_and_event_observations_are_preserved():
+    result = reconstruct(
+        {
+            "tracks": [
+                _obs(
+                    "V001",
+                    "C01",
+                    1,
+                    T0,
+                    T1,
+                    road_segment_id="SEG_A1",
+                    event_ids=["E001", "E002"],
+                    observations=[
+                        {
+                            "event_id": "E001",
+                            "camera_id": "C01",
+                            "local_track_id": 1,
+                            "timestamp": T0,
+                            "plate": "DL01AB1234",
+                            "ocr_confidence": 0.61,
+                            "road_segment_id": "SEG_A1",
+                        },
+                        {
+                            "event_id": "E002",
+                            "camera_id": "C01",
+                            "local_track_id": 1,
+                            "timestamp": T1,
+                            "plate": "DL01AB1234",
+                            "ocr_confidence": 0.95,
+                            "road_segment_id": "SEG_A1",
+                        },
+                    ],
+                ),
+                _obs(
+                    "V001",
+                    "C02",
+                    3,
+                    T2,
+                    T3,
+                    road_segment_id="SEG_B2",
+                    event_ids=["E003"],
+                    observations=[
+                        {
+                            "event_id": "E003",
+                            "camera_id": "C02",
+                            "local_track_id": 3,
+                            "timestamp": T2,
+                            "plate": "DL01AB1234",
+                            "ocr_confidence": 0.92,
+                            "road_segment_id": "SEG_B2",
+                        },
+                    ],
+                ),
+            ],
+            "matches": [],
+        }
+    )
+
+    traj = result["trajectories"][0]
+
+    assert traj["vehicle_id"] == "V001"
+    assert traj["trajectory_id"] == "T001"
+
+    # Ordered camera journey remains intact.
+    assert traj["camera_sequence"] == ["C01", "C02"]
+
+    # Original event identity must survive reconstruction.
+    assert traj["event_ids"] == ["E001", "E002", "E003"]
+
+    # Event-level observations must survive reconstruction.
+    assert len(traj["event_observations"]) == 3
+
+    assert traj["event_observations"][0]["event_id"] == "E001"
+    assert traj["event_observations"][1]["event_id"] == "E002"
+    assert traj["event_observations"][2]["event_id"] == "E003"
+
+    # Their chronological order must be preserved.
+    assert [
+        observation["timestamp"]
+        for observation in traj["event_observations"]
+    ] == [T0, T1, T2]
+
+    # GIS/road information is still available.
+    assert traj["road_sequence"] == ["SEG_A1", "SEG_B2"]

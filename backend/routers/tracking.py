@@ -1,28 +1,52 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Any
+
+from sqlalchemy.orm import Session
 
 from ai.tracking.integration import (
     match_tracked_frames,
     prepare_track_records,
 )
+from backend.database import SessionLocal
+from backend.services.trajectory_persistence import persist_trajectories
+
 
 router = APIRouter(prefix="/tracking", tags=["Tracking"])
 
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 @router.post("/match")
-def match_tracks(tracked_frames: list[dict[str, Any]]):
+def match_tracks(
+    tracked_frames: list[dict[str, Any]],
+    db: Session = Depends(get_db),
+):
     """
-    Match completed local tracks across cameras.
+    Match completed local tracks across cameras,
+    reconstruct trajectories, and persist them to the database.
 
     Input:
         A list of Member 3 enriched frame results.
 
     Output:
-        Global vehicle identities, match scores,
-        and verification candidates.
+        Global vehicle identities, trajectories,
+        match scores, and verification candidates.
     """
     try:
         result = match_tracked_frames(tracked_frames)
+
+        persisted_events = persist_trajectories(
+            db,
+            result.get("trajectories", []),
+        )
+
+        result["persisted_event_count"] = persisted_events
 
         return {
             "status": "success",

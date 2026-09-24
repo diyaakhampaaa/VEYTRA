@@ -33,9 +33,8 @@ class Vehicle(Base):
 
 class VehicleCameraEvent(Base):
     __tablename__ = "vehicle_camera_events"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
-
+    event_id = Column(String, nullable=True)
     vehicle_id = Column(String, nullable=False)
     camera_id = Column(String, nullable=False)
 

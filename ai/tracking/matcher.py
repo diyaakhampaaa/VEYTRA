@@ -395,25 +395,139 @@ class CrossCameraMatcher:
         track_b: dict[str, Any],
         score: dict[str, Any],
     ) -> dict[str, Any]:
-        """Build a Member 4-ready candidate without changing identity labels."""
+        """Build a Member 4-ready candidate using original event identity."""
+
         def event(track: dict[str, Any]) -> dict[str, Any]:
             raw_plate = track.get("plate_text")
             if raw_plate is None:
                 raw_plate = track.get("plate")
+
             plate = _normalize_plate(raw_plate)
-            confidence = track.get("ocr_confidence", track.get("confidence"))
+
+            confidence = track.get(
+                "ocr_confidence",
+                track.get("confidence"),
+            )
+
             try:
-                confidence = float(confidence) if confidence is not None else 0.0
+                confidence = (
+                    float(confidence)
+                    if confidence is not None
+                    else 0.0
+                )
             except (TypeError, ValueError):
                 confidence = 0.0
-            return {
-                "event_id": f"{track.get('camera_id')}:{track.get('local_track_id')}:{track.get('first_timestamp')}",
-                "camera_id": track.get("camera_id"),
+
+            confidence = max(0.0, min(1.0, confidence))
+
+            # -----------------------------------------------------
+            # Find the original observation represented by this
+            # track-level OCR result.
+            # -----------------------------------------------------
+            selected_observation = None
+
+            observations = track.get("observations")
+
+            if isinstance(observations, list):
+                matching_observations = []
+
+                for observation in observations:
+                    if not isinstance(observation, dict):
+                        continue
+
+                    observation_plate = _normalize_plate(
+                        observation.get("plate")
+                    )
+
+                    try:
+                        observation_confidence = float(
+                            observation.get("ocr_confidence", 0.0)
+                        )
+                    except (TypeError, ValueError):
+                        observation_confidence = 0.0
+
+                    if (
+                        observation_plate == plate
+                        and observation_confidence == confidence
+                    ):
+                        matching_observations.append(observation)
+
+                if matching_observations:
+                    selected_observation = matching_observations[0]
+
+            # -----------------------------------------------------
+            # Fallback: find the highest-confidence observation
+            # with the same plate.
+            # -----------------------------------------------------
+            if selected_observation is None and isinstance(observations, list):
+                matching_observations = []
+
+                for observation in observations:
+                    if not isinstance(observation, dict):
+                        continue
+
+                    observation_plate = _normalize_plate(
+                        observation.get("plate")
+                    )
+
+                    if observation_plate != plate:
+                        continue
+
+                    try:
+                        observation_confidence = float(
+                            observation.get("ocr_confidence", 0.0)
+                        )
+                    except (TypeError, ValueError):
+                        observation_confidence = 0.0
+
+                    matching_observations.append(
+                        (
+                            observation_confidence,
+                            observation,
+                        )
+                    )
+
+                if matching_observations:
+                    matching_observations.sort(
+                        key=lambda item: item[0],
+                        reverse=True,
+                    )
+                    selected_observation = matching_observations[0][1]
+
+            # -----------------------------------------------------
+            # Build event from the original observation.
+            # -----------------------------------------------------
+            if selected_observation is not None:
+                event_id = selected_observation.get("event_id")
+                timestamp = selected_observation.get(
+                    "timestamp",
+                    track.get("first_timestamp")
+                    or track.get("last_timestamp"),
+                )
+                camera_id = selected_observation.get(
+                    "camera_id",
+                    track.get("camera_id"),
+                )
+            else:
+                # If upstream did not provide an event_id, do not
+                # invent one. Preserve the absence of identity.
+                event_id = None
+                timestamp = (
+                    track.get("first_timestamp")
+                    or track.get("last_timestamp")
+                )
+                camera_id = track.get("camera_id")
+
+            result = {
+                "event_id": event_id,
+                "camera_id": camera_id,
                 "plate": plate,
-                "ocr_confidence": max(0.0, min(1.0, confidence)),
-                "timestamp": track.get("first_timestamp") or track.get("last_timestamp"),
+                "ocr_confidence": confidence,
+                "timestamp": timestamp,
                 "reid_similarity": score.get("appearance"),
             }
+
+            return result
 
         return {
             "event": event(track_a),
