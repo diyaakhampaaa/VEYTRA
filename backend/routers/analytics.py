@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from typing import Any
 
+from analytics.layers_api import (
+    get_layer,
+    get_all_layers,
+    list_layers,
+)
+
 from analytics.io import load_vehicle_events
 from analytics.density import compute_density
 from analytics.congestion import compute_congestion
@@ -10,7 +16,7 @@ from analytics.od_matrix import compute_od_matrix
 
 router = APIRouter(
     prefix="/analytics",
-    tags=["Analytics"]
+    tags=["Analytics"],
 )
 
 
@@ -21,23 +27,31 @@ def get_analytics():
     available vehicle observations.
 
     Pipeline:
+
         vehicle observations
-            -> density
-            -> congestion
-            -> bottlenecks
-            -> origin/destination movement
-            -> spatial segment data
+                ↓
+            density
+                ↓
+           congestion
+                ↓
+          bottlenecks
+                ↓
+       origin/destination
+                ↓
+        spatial segment data
     """
 
     try:
         # ---------------------------------------------------------
         # 1. Load the existing vehicle observations
         # ---------------------------------------------------------
+
         events = load_vehicle_events()
 
         # ---------------------------------------------------------
         # 2. Density / vehicle flow
         # ---------------------------------------------------------
+
         density = compute_density(
             events,
             window="15min",
@@ -47,6 +61,7 @@ def get_analytics():
         # ---------------------------------------------------------
         # 3. Congestion
         # ---------------------------------------------------------
+
         congestion = compute_congestion(
             events,
             window="15min",
@@ -56,6 +71,7 @@ def get_analytics():
         # ---------------------------------------------------------
         # 4. Bottlenecks
         # ---------------------------------------------------------
+
         bottlenecks = compute_bottlenecks(
             events,
             window="15min",
@@ -65,6 +81,7 @@ def get_analytics():
         # ---------------------------------------------------------
         # 5. Origin-Destination / movement patterns
         # ---------------------------------------------------------
+
         od = compute_od_matrix(
             events,
             exclude_same_location=True,
@@ -80,6 +97,7 @@ def get_analytics():
         #
         # Nothing is hardcoded for the map.
         # ---------------------------------------------------------
+
         segment_locations = {}
 
         required_spatial_columns = {
@@ -144,9 +162,10 @@ def get_analytics():
         # ---------------------------------------------------------
         # 7. Build segment-level response
         # ---------------------------------------------------------
+
         congestion_rows = congestion.get(
             "by_segment_time",
-            []
+            [],
         )
 
         segments = []
@@ -159,7 +178,7 @@ def get_analytics():
 
             location = segment_locations.get(
                 segment_id,
-                {}
+                {},
             )
 
             segments.append(
@@ -188,6 +207,7 @@ def get_analytics():
                     # -------------------------------------------------
                     # Spatial information for GIS / heatmap
                     # -------------------------------------------------
+
                     "latitude": location.get(
                         "latitude"
                     ),
@@ -200,18 +220,22 @@ def get_analytics():
         # ---------------------------------------------------------
         # 8. Summary
         # ---------------------------------------------------------
+
         total_vehicles = int(
             events["vehicle_id"].nunique()
         ) if not events.empty else 0
 
-        valid_speeds = events["speed_kmh"].dropna()
+        if "speed_kmh" in events.columns:
+            valid_speeds = events["speed_kmh"].dropna()
+        else:
+            valid_speeds = []
 
         average_speed = (
             round(
                 float(valid_speeds.mean()),
                 2,
             )
-            if not valid_speeds.empty
+            if len(valid_speeds) > 0
             else None
         )
 
@@ -233,7 +257,7 @@ def get_analytics():
 
         bottleneck_rows = bottlenecks.get(
             "bottlenecks",
-            []
+            [],
         )
 
         active_bottlenecks = [
@@ -245,14 +269,16 @@ def get_analytics():
         # ---------------------------------------------------------
         # 9. Movement flows
         # ---------------------------------------------------------
+
         movement_flows = od.get(
             "od_matrix",
-            []
+            [],
         )
 
         # ---------------------------------------------------------
         # 10. Return complete analytics response
         # ---------------------------------------------------------
+
         return {
             "status": "success",
 
@@ -281,7 +307,6 @@ def get_analytics():
             "density": density,
 
             "od": od,
-
         }
 
     except Exception as error:
@@ -320,3 +345,44 @@ def congestion(data: list[dict[str, Any]]):
             status_code=500,
             detail=f"Congestion analysis failed: {str(error)}",
         )
+
+
+# =============================================================
+# GIS / GeoJSON API
+# =============================================================
+
+
+@router.get("/layers")
+def analytics_layers():
+    """List available GIS layers."""
+
+    return {
+        "layers": list_layers(),
+    }
+
+
+@router.get("/layers/{layer_name}")
+def analytics_layer(layer_name: str):
+    """Return one GeoJSON GIS layer."""
+
+    try:
+        return get_layer(layer_name)
+
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+
+@router.get("/gis")
+def analytics_gis():
+    """Return all generated GIS layers."""
+
+    return get_all_layers()

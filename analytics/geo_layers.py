@@ -17,6 +17,7 @@ from analytics.od_matrix import compute_od_matrix
 from analytics.density_geojson import density_to_geojson
 from analytics.od_geojson import od_to_geojson
 from analytics.roads_geojson import roads_to_geojson
+from .verified_events import normalize_verified_events
 
 
 def _empty_feature_collection() -> dict[str, Any]:
@@ -500,22 +501,51 @@ def export_geojson(
     return paths
 
 
-def build_geo_layers(
-    events: pd.DataFrame,
-    window: str | int = "15min",
-) -> dict[str, dict[str, Any]]:
-    """Build all GIS-ready layers."""
-    return {
+def build_geo_layers(events, window=None):
+    """
+    Build all GIS layers from verified/corrected vehicle events.
+
+    Parameters
+    ----------
+    events:
+        Normalized vehicle-event DataFrame.
+    window:
+        Optional analytics time window, e.g. "5min", "15min", "1h".
+    """
+
+    if events is None:
+        events = pd.DataFrame()
+
+    if not isinstance(events, pd.DataFrame):
+        events = pd.DataFrame(events)
+
+    if events.empty:
+        empty = {
+            "type": "FeatureCollection",
+            "features": [],
+        }
+
+        return {
+            "cameras": empty.copy(),
+            "trajectories": empty.copy(),
+            "density": empty.copy(),
+            "congestion": empty.copy(),
+            "bottlenecks": empty.copy(),
+            "od_flows": empty.copy(),
+            "roads": empty.copy(),
+        }
+
+    layers = {
         "cameras": cameras_geojson(events),
-        "density": density_geojson(events, window),
         "trajectories": trajectories_geojson(events),
-        "congestion": congestion_geojson(events, window),
-        "bottlenecks": bottlenecks_geojson(events, window),
+        "density": density_geojson(events),
+        "congestion": congestion_geojson(events),
+        "bottlenecks": bottlenecks_geojson(events),
         "od_flows": od_flows_geojson(events),
         "roads": roads_geojson(events),
     }
 
-
+    return layers
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Create GIS-ready GeoJSON traffic layers."

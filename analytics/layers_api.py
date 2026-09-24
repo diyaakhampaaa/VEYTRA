@@ -30,26 +30,22 @@ def list_layers() -> list[str]:
     ]
 
 
-def get_layer(layer_name: str) -> dict[str, Any]:
-    """
-    Load one GeoJSON layer by name.
-    """
+def get_layer(layer_name: str):
     if layer_name not in LAYER_FILES:
-        raise ValueError(
-            f"Unknown layer '{layer_name}'. "
+        raise KeyError(
+            f"Unknown GIS layer '{layer_name}'. "
             f"Available layers: {list(LAYER_FILES)}"
         )
 
-    layer_path = OUTPUT_DIR / LAYER_FILES[layer_name]
+    path = OUTPUT_DIR / LAYER_FILES[layer_name]
 
-    if not layer_path.exists():
+    if not path.exists():
         raise FileNotFoundError(
-            f"Layer '{layer_name}' has not been generated yet: {layer_path}"
+            f"GIS layer has not been generated yet: {path}"
         )
 
-    with layer_path.open("r", encoding="utf-8") as file:
+    with path.open("r", encoding="utf-8") as file:
         return json.load(file)
-
 
 def get_all_layers() -> dict[str, dict[str, Any]]:
     """
@@ -64,3 +60,12 @@ def get_all_layers() -> dict[str, dict[str, Any]]:
 if __name__ == "__main__":
     print("Available layers:")
     print(list_layers())
+
+
+def layer_exists(layer_name: str) -> bool:
+    if layer_name not in LAYER_FILES:
+        return False
+
+    return (
+        OUTPUT_DIR / LAYER_FILES[layer_name]
+    ).exists()

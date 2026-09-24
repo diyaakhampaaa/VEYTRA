@@ -26,3 +26,6 @@ ai/detection/weights/*.pth
 # Node / frontend
 node_modules/
 frontend/dist/
+
+# Generated M5 analytics/GIS outputs
+analytics/output/
