@@ -119,6 +119,35 @@ Output:
 }
 ```
 
+## Dashboard output contract (what Member 6 should consume)
+
+Per Member 2's request, `/verify`, the async worker, and `integration.py`
+all now return this normalized shape -- the dashboard should read this,
+not raw OCR output:
+
+```json
+{
+  "event_id": "E001",
+  "vehicle_id": "V001",
+  "plate_number": "DL01AB1234",
+  "verification_status": "verified",
+  "ocr_confidence": 0.94,
+  "original_plate": "DL01AB1234",
+  "corrected_plate": "DL01AB1234",
+  "verification_confidence": 1.0,
+  "supporting_cameras": [],
+  "reid_similarity": null,
+  "reason": "Not flagged as suspicious"
+}
+```
+
+`verification_status` is one of `"verified"`, `"corrected"`, or `"unverified"`
+(insufficient evidence -- record kept as-is, honestly flagged, not guessed).
+`vehicle_id` is assigned upstream by Member 3 and only ever passed through
+here, never invented. `original_plate`/`corrected_plate` and the other
+detail fields are kept alongside the minimal shape for the audit trail --
+see `output.py`.
+
 ## Data contract
 
 Input: a vehicle event (`event_id`, `camera_id`, `plate`, `ocr_confidence`,
@@ -142,7 +171,7 @@ Output: exact shape shown above. If no correction is made,
 ```bash
 pytest ai/verification/tests/ -v
 ```
-19/19 passing. Covers: all three suspicion rules independently, scoring
+23/23 passing. Covers: all three suspicion rules independently, scoring
 with/without `reid_similarity` (confidence-ceiling fallback), conflicting
 evidence resolution, no-evidence handling, the full USP scenario (wrong
 plate at one camera, correct at two neighbours -> caught, corrected,
@@ -165,6 +194,7 @@ ai/verification/
   correction.py         # decides correct/don't-correct, always preserves original_plate
   logger.py             # writes verification_logs audit trail
   integration.py        # adapter for Member 3's real verification_payloads() output
+  output.py              # shapes results into the dashboard-facing record (verification_status, plate_number, vehicle_id)
   api.py                # FastAPI: POST /verify, GET /verification-logs
   worker.py             # async/background verification path
   tests/                # pytest suite, incl. test_end_to_end.py (USP scenario) and test_integration.py (real data) test_worker.py (non-blocking proof),     test_api.py (HTTP endpoints)

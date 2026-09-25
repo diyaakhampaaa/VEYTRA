@@ -41,6 +41,7 @@ from .suspicion import check_suspicion
 from .scoring import find_best_candidate
 from .correction import apply_correction
 from .logger import log_verification_decision
+from .output import to_dashboard_record
 
 
 def group_payloads_by_event(payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -91,12 +92,14 @@ def process_verification_payloads(payloads: list[dict[str, Any]]) -> list[dict[s
     results = []
 
     for event in grouped_events:
+        vehicle_id = event.get("vehicle_id")  # assigned by Member 3, never invented here
+        ocr_confidence = event.get("ocr_confidence")
         verdict = check_suspicion(event)
 
         if not verdict["is_suspicious"]:
             # Shouldn't normally happen -- Member 3 only sends us plausible
             # mismatches -- but we stay defensive rather than assume.
-            results.append({
+            result = {
                 "event_id": event["event_id"],
                 "original_plate": event.get("plate"),
                 "corrected_plate": event.get("plate"),
@@ -104,7 +107,8 @@ def process_verification_payloads(payloads: list[dict[str, Any]]) -> list[dict[s
                 "reid_similarity": event.get("reid_similarity"),
                 "verification_confidence": 1.0,
                 "reason": "Not flagged as suspicious",
-            })
+            }
+            results.append(to_dashboard_record(result, vehicle_id=vehicle_id, ocr_confidence=ocr_confidence))
             continue
 
         best = find_best_candidate(
@@ -118,7 +122,7 @@ def process_verification_payloads(payloads: list[dict[str, Any]]) -> list[dict[s
             best,
             event.get("reid_similarity"),
         )
-        log_verification_decision(result, original_confidence=event.get("ocr_confidence"))
-        results.append(result)
+        log_verification_decision(result, original_confidence=ocr_confidence)
+        results.append(to_dashboard_record(result, vehicle_id=vehicle_id, ocr_confidence=ocr_confidence))
 
     return results
