@@ -15,6 +15,7 @@ from .evidence import find_supporting_evidence
 from .scoring import find_best_candidate
 from .correction import apply_correction
 from .logger import log_verification_decision, get_all_logs
+from .output import to_dashboard_record
 
 app = FastAPI(title="VEYTRA Verification Service")
 
@@ -23,6 +24,7 @@ class VehicleEvent(BaseModel):
     """Matches the shared vehicle_events contract (the fields we actually need)."""
     event_id: str
     camera_id: str
+    vehicle_id: Optional[str] = None  # assigned upstream by Member 3, passed through as-is
     plate: Optional[str] = None
     ocr_confidence: float = 1.0
     timestamp: str
@@ -35,6 +37,10 @@ def verify_event(event: VehicleEvent) -> dict:
     Runs one event through the full pipeline:
     suspicion check -> evidence search -> scoring -> correction -> logging.
 
+    Returns the dashboard-facing record (event identity preserved,
+    verification_status exposed, plate_number = the final trusted plate) --
+    this is what Member 6's dashboard should consume, not raw OCR output.
+
     If the event isn't suspicious, we skip straight to a clean pass-through
     result (no need to search evidence for something that already looks fine).
     """
@@ -42,7 +48,7 @@ def verify_event(event: VehicleEvent) -> dict:
     verdict = check_suspicion(event_dict)
 
     if not verdict["is_suspicious"]:
-        return {
+        result = {
             "event_id": event.event_id,
             "original_plate": event.plate,
             "corrected_plate": event.plate,
@@ -51,12 +57,13 @@ def verify_event(event: VehicleEvent) -> dict:
             "verification_confidence": 1.0,
             "reason": "Not flagged as suspicious",
         }
+        return to_dashboard_record(result, vehicle_id=event.vehicle_id, ocr_confidence=event.ocr_confidence)
 
     supporting = find_supporting_evidence(event_dict)
     best = find_best_candidate(event.plate, supporting, event.reid_similarity)
     result = apply_correction(event.event_id, event.plate, best, event.reid_similarity)
     log_verification_decision(result, original_confidence=event.ocr_confidence)
-    return result
+    return to_dashboard_record(result, vehicle_id=event.vehicle_id, ocr_confidence=event.ocr_confidence)
 
 
 @app.get("/verification-logs")
