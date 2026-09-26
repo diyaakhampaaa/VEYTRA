@@ -13,6 +13,7 @@ from .evidence import find_supporting_evidence
 from .scoring import find_best_candidate
 from .correction import apply_correction
 from .logger import log_verification_decision
+from .output import to_dashboard_record
 
 
 async def verify_event_async(
@@ -28,10 +29,16 @@ async def verify_event_async(
     `asyncio.to_thread` runs the (possibly slow/blocking) evidence
     search in a background thread, so the main event loop stays free
     to work on other events while this one is waiting.
+
+    Returns the dashboard-facing record (see output.py) so the
+    background/async path produces the same shape as the /verify API.
     """
+    vehicle_id = event.get("vehicle_id")
+    ocr_confidence = event.get("ocr_confidence")
+
     verdict = check_suspicion(event)
     if not verdict["is_suspicious"]:
-        return {
+        result = {
             "event_id": event["event_id"],
             "original_plate": event.get("plate"),
             "corrected_plate": event.get("plate"),
@@ -40,12 +47,13 @@ async def verify_event_async(
             "verification_confidence": 1.0,
             "reason": "Not flagged as suspicious",
         }
+        return to_dashboard_record(result, vehicle_id=vehicle_id, ocr_confidence=ocr_confidence)
 
     supporting = await asyncio.to_thread(evidence_search_fn, event)
     best = find_best_candidate(event.get("plate"), supporting, reid_similarity)
     result = apply_correction(event["event_id"], event.get("plate"), best, reid_similarity)
-    log_verification_decision(result, original_confidence=event.get("ocr_confidence"))
-    return result
+    log_verification_decision(result, original_confidence=ocr_confidence)
+    return to_dashboard_record(result, vehicle_id=vehicle_id, ocr_confidence=ocr_confidence)
 
 
 async def verify_many_events_async(events: list[dict], evidence_search_fn=find_supporting_evidence) -> list[dict]:

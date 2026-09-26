@@ -538,7 +538,7 @@ def read_plate(
         # AP10AR0658 -> kept
         if not valid or confidence < 0.50:
             return {
-                "plate": None,
+                "plate": normalized,
                 "confidence": confidence,
                 "alternatives": alternatives,
             }

@@ -328,7 +328,19 @@ def _run_full_frame_plate_detection(
     # ---------------------------------------------------------
 
     if model == "STUB_PLATE_MODEL":
-        return []
+        h, w = frame.shape[:2]
+
+        return [
+            {
+                "plate_bbox": [
+                    int(w * 0.35),
+                    int(h * 0.40),
+                    int(w * 0.45),
+                    int(h * 0.45),
+                ],
+                "plate_confidence": 0.90,
+            }
+        ]
 
     # ---------------------------------------------------------
     # REAL PLATE DETECTOR
