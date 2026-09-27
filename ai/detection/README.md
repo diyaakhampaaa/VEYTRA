@@ -109,7 +109,7 @@ Bus, Truck, LCV, Van, Bicycle, Tempo-traveller, and others), not a placeholder.
 
 ## Model details
 
-**VehicleNet-Y26x** — YOLO26x fine-tuned on UVH-26-MV (IISc Bangalore,
+**VehicleNet-Y26x** — YOLO26x fine-tuned on UVH-26-MV (IISc Delhi,
 Indian traffic), 14 vehicle classes, mAP@50:95=0.666. Gated on Hugging Face
 (Perception365/VehicleNet-Y26x) — access was requested and approved during
 this project.

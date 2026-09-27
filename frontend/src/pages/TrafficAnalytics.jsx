@@ -4,10 +4,10 @@ import { getAnalytics } from "../api/client"
 
 
 /* =========================================================
-   BENGALURU HEATMAP AREAS
+   Delhi HEATMAP AREAS
 ========================================================= */
 
-const BENGALURU_AREAS = [
+const Delhi_AREAS = [
   {
     id: "yelahanka",
     name: "Yelahanka",
@@ -147,10 +147,10 @@ const BENGALURU_AREAS = [
 
 /*
  * Existing backend segment IDs are projected onto the
- * Bengaluru visual traffic model.
+ * Delhi visual traffic model.
  *
  * This keeps the backend analytics untouched while allowing
- * the dashboard to visualize congestion over Bengaluru areas.
+ * the dashboard to visualize congestion over Delhi areas.
  */
 const AREA_SEGMENT_MAP = {
   "mg-road": "SEG_B2",
@@ -506,7 +506,7 @@ function TrafficAnalytics() {
 
 
   /* =========================================================
-     BENGALURU HEAT DATA
+     Delhi HEAT DATA
   ========================================================= */
 
   const heatmapSegments =
@@ -546,13 +546,13 @@ function TrafficAnalytics() {
 
   /*
    * Convert backend segment scores into
-   * Bengaluru area intensity.
+   * Delhi area intensity.
    */
   const areaHeat = useMemo(() => {
 
     const scores = {}
 
-    BENGALURU_AREAS.forEach(
+    Delhi_AREAS.forEach(
       (area) => {
         scores[area.id] = 0
       }
@@ -594,9 +594,9 @@ function TrafficAnalytics() {
            * rather than breaking the map.
            */
           const fallbackArea =
-            BENGALURU_AREAS[
+            Delhi_AREAS[
               index %
-                BENGALURU_AREAS.length
+                Delhi_AREAS.length
             ]
 
           scores[
@@ -1157,7 +1157,7 @@ function TrafficAnalytics() {
 
 
       {/* =====================================================
-          BENGALURU TRAFFIC HEATMAP
+          Delhi TRAFFIC HEATMAP
       ===================================================== */}
 
       <div className="mt-10">
@@ -1176,14 +1176,14 @@ function TrafficAnalytics() {
 
             <h2 className="text-lg font-medium">
 
-              Bengaluru Traffic Heatmap
+              Delhi Traffic Heatmap
 
             </h2>
 
 
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
 
-              City-wide congestion intensity visualized across major Bengaluru traffic corridors.
+              City-wide congestion intensity visualized across major Delhi traffic corridors.
 
             </p>
 
@@ -1282,7 +1282,7 @@ function TrafficAnalytics() {
   <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />
 
   <span>
-    VEYTRA / BENGALURU TRAFFIC FIELD
+    VEYTRA / Delhi TRAFFIC FIELD
   </span>
 
   <span className="border border-cyan-400/20 bg-cyan-400/5 px-2 py-1 text-[7px] text-cyan-300/60">
@@ -1429,7 +1429,7 @@ function TrafficAnalytics() {
 
 
               {/* =================================================
-                  BENGALURU OUTER CITY BOUNDARY
+                  Delhi OUTER CITY BOUNDARY
               ================================================= */}
 
               <path
@@ -1529,7 +1529,7 @@ strokeOpacity="0.35"
                   PIXELATED HEAT FIELD
               ================================================= */}
 
-              {BENGALURU_AREAS.map(
+              {Delhi_AREAS.map(
                 (area) => {
 
                   const score =
@@ -1637,7 +1637,7 @@ strokeOpacity="0.35"
                       let intensity =
                         0
 
-                      BENGALURU_AREAS.forEach(
+                      Delhi_AREAS.forEach(
                         (area) => {
 
                           const score =
@@ -1778,7 +1778,7 @@ strokeOpacity="0.35"
                   AREA BOUNDARIES
               ================================================= */}
 
-              {BENGALURU_AREAS.map(
+              {Delhi_AREAS.map(
                 (area) => {
 
                   const score =
@@ -1835,7 +1835,7 @@ strokeOpacity="0.35"
                   AREA LABELS
               ================================================= */}
 
-              {BENGALURU_AREAS.map(
+              {Delhi_AREAS.map(
                 (area) => {
 
                   const score =
@@ -1929,7 +1929,7 @@ strokeOpacity="0.35"
                 letterSpacing="5"
               >
 
-                BENGALURU
+                Delhi
 
               </text>
 
@@ -1943,7 +1943,7 @@ strokeOpacity="0.35"
             {hoveredArea && (() => {
 
               const area =
-                BENGALURU_AREAS.find(
+                Delhi_AREAS.find(
                   (item) =>
                     item.id ===
                     hoveredArea
@@ -1989,7 +1989,7 @@ strokeOpacity="0.35"
 
                   <div className="text-[8px] uppercase tracking-[0.2em] text-white/40">
 
-                    Bengaluru Area
+                    Delhi Area
 
                   </div>
 
@@ -2094,7 +2094,7 @@ strokeOpacity="0.35"
           <div className="absolute bottom-5 left-6 z-20 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[8px] uppercase tracking-[0.16em] text-white/30">
 
             <span>
-              BENGALURU SPATIAL MODEL
+              Delhi SPATIAL MODEL
             </span>
 
             <span>

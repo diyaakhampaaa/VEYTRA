@@ -39,7 +39,7 @@ function TopBar({ activePage }) {
           </span>
 
           <span className="veytra-topbar-city-name">
-            Bengaluru
+            Delhi
           </span>
         </div>
 

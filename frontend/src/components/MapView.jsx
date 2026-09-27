@@ -22,7 +22,7 @@ function MapView({ cameras: backendCameras = [] }) {
       y: position.y,
       vehicles: camera.vehicles_detected || 0,
       status: camera.status?.toUpperCase() || "ACTIVE",
-      location: `BENGALURU NODE ${index + 1}`,
+      location: `Delhi NODE ${index + 1}`,
       road: "SIMULATED CORRIDOR",
       coverage: "—",
     }

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo } from "react";
 import {
   MapContainer,
@@ -13,6 +12,50 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 const INDIA_TIMEZONE = "Asia/Kolkata";
+
+/*
+ * DEMO TRAJECTORY
+ * These values are hardcoded for the final presentation.
+ * They are simulated route metadata, not real GPS observations.
+ */
+const DEMO_TRAJECTORY = [
+  {
+    event_id: "demo-c01",
+    camera_id: "C01",
+    timestamp: "2026-09-27T10:02:15+05:30",
+    direction: "South-East",
+    road_name: "Kashmere Gate Road",
+    speed_kmh: 42,
+    location: {
+      latitude: 28.6663,
+      longitude: 77.2295,
+    },
+  },
+  {
+    event_id: "demo-c02",
+    camera_id: "C02",
+    timestamp: "2026-09-27T10:06:42+05:30",
+    direction: "South",
+    road_name: "Netaji Subhash Marg",
+    speed_kmh: 38,
+    location: {
+      latitude: 28.6562,
+      longitude: 77.2410,
+    },
+  },
+  {
+    event_id: "demo-c03",
+    camera_id: "C03",
+    timestamp: "2026-09-27T10:12:08+05:30",
+    direction: "South-East",
+    road_name: "Mahatma Gandhi Marg",
+    speed_kmh: 45,
+    location: {
+      latitude: 28.6139,
+      longitude: 77.2295,
+    },
+  },
+];
 
 function formatTimestamp(value) {
   if (!value) return "Unavailable";
@@ -36,6 +79,7 @@ function formatValue(value, suffix = "") {
   if (value === null || value === undefined || value === "") {
     return "Unavailable";
   }
+
   return `${value}${suffix}`;
 }
 
@@ -81,7 +125,7 @@ function FitRoute({ points }) {
     if (points.length > 0) {
       map.fitBounds(L.latLngBounds(points), {
         padding: [45, 45],
-        maxZoom: 16,
+        maxZoom: 14,
       });
     }
   }, [map, points]);
@@ -90,41 +134,26 @@ function FitRoute({ points }) {
 }
 
 function TrajectoryMap({ cameraSequence = [] }) {
-  const events = useMemo(
-    () =>
-      [...cameraSequence]
-        .sort((a, b) => {
-          const timeA = new Date(a.timestamp).getTime();
-          const timeB = new Date(b.timestamp).getTime();
-
-          if (!Number.isNaN(timeA) && !Number.isNaN(timeB)) {
-            return timeA - timeB;
-          }
-          return 0;
-        })
-        .map((item, index) => ({
-          ...item,
-          eventKey: item.event_id || `${item.camera_id || "camera"}-${index}`,
-        })),
-    [cameraSequence]
-  );
+  /*
+   * The backend sequence is still accepted by the component,
+   * but the displayed route is currently the controlled demo route.
+   */
+  const events = useMemo(() => {
+    return DEMO_TRAJECTORY.map((item, index) => ({
+      ...item,
+      eventKey: item.event_id || `${item.camera_id}-${index}`,
+    }));
+  }, [cameraSequence]);
 
   const geoEvents = useMemo(
     () =>
-      events
-        .filter(
-          (item) =>
-            item.location &&
-            Number.isFinite(Number(item.location.latitude)) &&
-            Number.isFinite(Number(item.location.longitude))
-        )
-        .map((item) => ({
-          ...item,
-          position: [
-            Number(item.location.latitude),
-            Number(item.location.longitude),
-          ],
-        })),
+      events.map((item) => ({
+        ...item,
+        position: [
+          Number(item.location.latitude),
+          Number(item.location.longitude),
+        ],
+      })),
     [events]
   );
 
@@ -148,13 +177,9 @@ function TrajectoryMap({ cameraSequence = [] }) {
     [geoEvents]
   );
 
-  const cameraCount = new Set(
-    events.map((item) => item.camera_id).filter(Boolean)
-  ).size;
-
-  const hasMapCoordinates = geoEvents.length > 0;
+  const cameraCount = geoEvents.length;
   const hasRoute = geoEvents.length > 1;
-  const mapCenter = geoEvents[0]?.position || [28.66, 77.225];
+  const mapCenter = geoEvents[0]?.position || [28.64, 77.23];
 
   return (
     <section className="trajectory-panel">
@@ -163,7 +188,7 @@ function TrajectoryMap({ cameraSequence = [] }) {
           <div className="eyebrow">CROSS-CAMERA ANALYSIS</div>
           <h2>Vehicle Trajectory</h2>
           <p className="trajectory-subtitle">
-            Observed camera sequence and available location data
+            Reconstructed camera sequence across the monitored network
           </p>
         </div>
 
@@ -172,6 +197,7 @@ function TrajectoryMap({ cameraSequence = [] }) {
             <strong>{cameraCount}</strong>
             <span>CAMERAS</span>
           </div>
+
           <div>
             <strong>{events.length}</strong>
             <span>OBSERVATIONS</span>
@@ -179,195 +205,180 @@ function TrajectoryMap({ cameraSequence = [] }) {
         </div>
       </div>
 
-      {hasMapCoordinates ? (
-        <>
-          <div className="map-heading">
-            <span>LOCATION VIEW</span>
-            <span>
-              {hasRoute
-                ? "Coordinates available for route display"
-                : "One camera location available"}
-            </span>
-          </div>
+      <div className="map-heading">
+        <span>LOCATION VIEW</span>
 
-          <div className="trajectory-map-shell">
-            <MapContainer
-              center={mapCenter}
-              zoom={15}
-              scrollWheelZoom
-              className="trajectory-map"
-            >
-              <TileLayer
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        <span>
+          Simulated route metadata · C01 → C02 → C03
+        </span>
+      </div>
+
+      <div className="trajectory-map-shell">
+        <MapContainer
+          center={mapCenter}
+          zoom={14}
+          scrollWheelZoom
+          className="trajectory-map"
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          <FitRoute points={route} />
+
+          {hasRoute && (
+            <Polyline
+              positions={route}
+              pathOptions={{
+                color: "#16e5ff",
+                weight: 5,
+                opacity: 0.95,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+          )}
+
+          {arrows.map((arrow, index) => (
+            <Marker
+              key={`arrow-${index}`}
+              position={arrow.position}
+              icon={arrowIcon(arrow.rotation)}
+              interactive={false}
+            />
+          ))}
+
+          {geoEvents.map((item) => (
+            <React.Fragment key={item.eventKey}>
+              <CircleMarker
+                center={item.position}
+                radius={9}
+                pathOptions={{
+                  color: "#16e5ff",
+                  weight: 2,
+                  fillColor: "#06131d",
+                  fillOpacity: 1,
+                }}
               />
 
-              <FitRoute points={route} />
+              <Marker
+                position={item.position}
+                icon={cameraIcon(item.camera_id)}
+              >
+                <Popup>
+                  <strong>{item.camera_id}</strong>
+                  <br />
+                  {formatTimestamp(item.timestamp)}
+                  <br />
+                  Direction: {formatValue(item.direction)}
+                  <br />
+                  Road: {formatValue(item.road_name)}
+                  <br />
+                  Speed: {formatValue(item.speed_kmh, " km/h")}
+                  <br />
+                  <br />
+                  <strong>SIMULATED ROUTE</strong>
+                </Popup>
+              </Marker>
+            </React.Fragment>
+          ))}
+        </MapContainer>
 
-              {hasRoute && (
-                <Polyline
-                  positions={route}
-                  pathOptions={{
-                    color: "#16e5ff",
-                    weight: 5,
-                    opacity: 0.95,
-                    lineCap: "round",
-                    lineJoin: "round",
-                  }}
-                />
-              )}
-
-              {arrows.map((arrow, index) => (
-                <Marker
-                  key={`arrow-${index}`}
-                  position={arrow.position}
-                  icon={arrowIcon(arrow.rotation)}
-                  interactive={false}
-                />
-              ))}
-
-              {geoEvents.map((item, index) => (
-                <React.Fragment key={item.eventKey}>
-                  <CircleMarker
-                    center={item.position}
-                    radius={9}
-                    pathOptions={{
-                      color: "#16e5ff",
-                      weight: 2,
-                      fillColor: "#06131d",
-                      fillOpacity: 1,
-                    }}
-                  />
-
-                  <Marker
-                    position={item.position}
-                    icon={cameraIcon(item.camera_id || "Camera")}
-                  >
-                    <Popup>
-                      <strong>{item.camera_id || "Camera"}</strong>
-                      <br />
-                      {formatTimestamp(item.timestamp)}
-                      <br />
-                      Direction: {formatValue(item.direction)}
-                      <br />
-                      Road: {formatValue(item.road_name)}
-                      <br />
-                      Speed: {formatValue(item.speed_kmh, " km/h")}
-                    </Popup>
-                  </Marker>
-                </React.Fragment>
-              ))}
-            </MapContainer>
-
-            <div className="north">
-              ▲<small>N</small>
-            </div>
-
-            <div className="map-status">
-              <span />
-              {hasRoute
-                ? "COORDINATE-BASED PATH"
-                : "SINGLE LOCATION — NO PATH"}
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="no-route-panel">
-          <div className="no-route-icon">⌖</div>
-          <div className="no-route-title">
-            Route geometry unavailable
-          </div>
-          <p>
-            Camera sightings were recorded, but GPS coordinates are not
-            available for these events. The camera sequence below shows
-            the observed journey without drawing an estimated road route.
-          </p>
-          <div className="no-route-meta">
-            {cameraCount} {cameraCount === 1 ? "camera" : "cameras"} ·{" "}
-            {events.length} {events.length === 1 ? "observation" : "observations"}
-          </div>
+        <div className="north">
+          ▲<small>N</small>
         </div>
-      )}
+
+        <div className="map-status">
+          <span />
+          PROJECTED ROUTE <b>C01 → C02 → C03</b>
+        </div>
+      </div>
 
       <div className="sequence-heading">
         <div>
           <div className="eyebrow">OBSERVATION RECORD</div>
           <h3>Camera Sequence</h3>
         </div>
+
         <span className="sequence-count">
           {events.length} EVENTS
         </span>
       </div>
 
-      {events.length > 0 ? (
-        <div className="trajectory-events">
-          {events.map((item, index) => (
-            <React.Fragment key={item.eventKey}>
-              <article className="event-card">
-                <div className="event-number">
-                  {String(index + 1).padStart(2, "0")}
-                </div>
+      <div className="trajectory-events">
+        {events.map((item, index) => (
+          <React.Fragment key={item.eventKey}>
+            <article className="event-card">
+              <div className="event-number">
+                {String(index + 1).padStart(2, "0")}
+              </div>
 
-                <div className="event-body">
-                  <div className="event-topline">
-                    <div>
-                      <div className="event-camera">
-                        {item.camera_id || "Unknown camera"}
-                      </div>
-                      <div className="event-type">CAMERA OBSERVATION</div>
+              <div className="event-body">
+                <div className="event-topline">
+                  <div>
+                    <div className="event-camera">
+                      {item.camera_id}
                     </div>
-                    <span className="event-index">
-                      EVENT {String(index + 1).padStart(2, "0")}
-                    </span>
-                  </div>
 
-                  <div className="divider" />
-
-                  <div className="event-row">
-                    <span>TIMESTAMP</span>
-                    <strong>{formatTimestamp(item.timestamp)}</strong>
-                  </div>
-
-                  <div className="event-row">
-                    <span>DIRECTION</span>
-                    <strong>{formatValue(item.direction)}</strong>
-                  </div>
-
-                  <div className="event-row">
-                    <span>ROAD</span>
-                    <strong>{formatValue(item.road_name)}</strong>
-                  </div>
-
-                  <div className="event-row">
-                    <span>SPEED</span>
-                    <strong>{formatValue(item.speed_kmh, " km/h")}</strong>
-                  </div>
-
-                  {item.location && (
-                    <div className="event-row">
-                      <span>LOCATION</span>
-                      <strong>
-                        {Number(item.location.latitude).toFixed(5)},{" "}
-                        {Number(item.location.longitude).toFixed(5)}
-                      </strong>
+                    <div className="event-type">
+                      CAMERA OBSERVATION · SIMULATED
                     </div>
-                  )}
-                </div>
-              </article>
+                  </div>
 
-              {index < events.length - 1 && (
-                <div className="connector" aria-hidden="true">
-                  →
+                  <span className="event-index">
+                    EVENT {String(index + 1).padStart(2, "0")}
+                  </span>
                 </div>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      ) : (
-        <div className="no-events">
-          No camera observations are available for this vehicle.
-        </div>
-      )}
+
+                <div className="divider" />
+
+                <div className="event-row">
+                  <span>TIMESTAMP</span>
+                  <strong>
+                    {formatTimestamp(item.timestamp)}
+                  </strong>
+                </div>
+
+                <div className="event-row">
+                  <span>DIRECTION</span>
+                  <strong>
+                    {formatValue(item.direction)}
+                  </strong>
+                </div>
+
+                <div className="event-row">
+                  <span>ROAD</span>
+                  <strong>
+                    {formatValue(item.road_name)}
+                  </strong>
+                </div>
+
+                <div className="event-row">
+                  <span>SPEED</span>
+                  <strong>
+                    {formatValue(item.speed_kmh, " km/h")}
+                  </strong>
+                </div>
+
+                <div className="event-row">
+                  <span>LOCATION</span>
+                  <strong>
+                    {Number(item.location.latitude).toFixed(5)},{" "}
+                    {Number(item.location.longitude).toFixed(5)}
+                  </strong>
+                </div>
+              </div>
+            </article>
+
+            {index < events.length - 1 && (
+              <div className="connector" aria-hidden="true">
+                →
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
 
       <style>{`
         .trajectory-panel {
@@ -561,52 +572,8 @@ function TrajectoryMap({ cameraSequence = [] }) {
           box-shadow: 0 0 9px #16e5ff;
         }
 
-        .no-route-panel {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 190px;
-          padding: 24px;
-          border: 1px dashed rgba(22,229,255,.22);
-          border-radius: 13px;
-          background: rgba(22,229,255,.018);
-          text-align: center;
-        }
-
-        .no-route-icon {
-          display: grid;
-          place-items: center;
-          width: 42px;
-          height: 42px;
-          margin-bottom: 12px;
-          border: 1px solid rgba(22,229,255,.3);
-          border-radius: 50%;
+        .map-status b {
           color: #16e5ff;
-          font-size: 23px;
-        }
-
-        .no-route-title {
-          color: #dcecf2;
-          font-size: 14px;
-          font-weight: 600;
-        }
-
-        .no-route-panel p {
-          max-width: 490px;
-          margin: 8px 0 0;
-          color: #8196a1;
-          font-size: 12px;
-          line-height: 1.7;
-        }
-
-        .no-route-meta {
-          margin-top: 13px;
-          color: #16e5ff;
-          font-size: 9px;
-          font-weight: 700;
-          letter-spacing: .12em;
-          text-transform: uppercase;
         }
 
         .sequence-heading {
@@ -749,15 +716,6 @@ function TrajectoryMap({ cameraSequence = [] }) {
           color: #16e5ff;
           font-size: 21px;
           text-shadow: 0 0 9px rgba(22,229,255,.6);
-        }
-
-        .no-events {
-          padding: 20px;
-          border: 1px solid rgba(255,255,255,.07);
-          border-radius: 10px;
-          color: #8299a5;
-          font-size: 12px;
-          text-align: center;
         }
 
         @media (max-width: 700px) {
