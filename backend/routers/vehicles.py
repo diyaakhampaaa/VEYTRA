@@ -34,8 +34,13 @@ def search_vehicle(
 
     events = (
         db.query(VehicleCameraEvent)
-        .filter(VehicleCameraEvent.vehicle_id == vehicle.vehicle_id)
-        .order_by(VehicleCameraEvent.timestamp)
+        .filter(
+            VehicleCameraEvent.vehicle_id
+            == vehicle.vehicle_id
+        )
+        .order_by(
+            VehicleCameraEvent.timestamp
+        )
         .all()
     )
 
@@ -44,7 +49,10 @@ def search_vehicle(
     for event in events:
         location = None
 
-        if event.latitude is not None and event.longitude is not None:
+        if (
+            event.latitude is not None
+            and event.longitude is not None
+        ):
             location = {
                 "latitude": event.latitude,
                 "longitude": event.longitude
@@ -74,7 +82,29 @@ def search_vehicle(
                 "reid_similarity": vehicle.reid_similarity,
                 "plate_similarity": vehicle.plate_similarity,
                 "temporal_score": vehicle.temporal_score,
-                "route_score": vehicle.route_score
+                "route_score": vehicle.route_score,
+                "ocr_confidence": vehicle.ocr_confidence
             }
         }
+    }
+
+
+@router.get("/")
+def get_vehicles(
+    db: Session = Depends(get_db)
+):
+    vehicles = (
+        db.query(Vehicle)
+        .order_by(Vehicle.plate)
+        .all()
+    )
+
+    return {
+        "vehicles": [
+            {
+                "vehicle_id": vehicle.vehicle_id,
+                "plate": vehicle.plate,
+            }
+            for vehicle in vehicles
+        ]
     }

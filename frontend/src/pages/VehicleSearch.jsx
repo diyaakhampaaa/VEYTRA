@@ -1,14 +1,47 @@
-import { useState } from "react"
-import { searchVehicle } from "../api/client"
+
+import { useEffect, useState } from "react"
+import { getVehicles, searchVehicle } from "../api/client"
 import SourceBadge from "../components/SourceBadge"
 import MatchScoreBreakdown from "../components/MatchScoreBreakdown"
 import TrajectoryMap from "../components/TrajectoryMap"
 
 function VehicleSearch() {
   const [plate, setPlate] = useState("")
+  const [vehicles, setVehicles] = useState([])
+  const [vehiclesLoading, setVehiclesLoading] = useState(true)
+  const [vehiclesError, setVehiclesError] = useState("")
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    let active = true
+
+    async function loadVehicles() {
+      try {
+        const data = await getVehicles()
+        if (active) {
+          setVehicles(Array.isArray(data?.vehicles) ? data.vehicles : [])
+          setVehiclesError("")
+        }
+      } catch (err) {
+        console.error(err)
+        if (active) {
+          setVehiclesError("Unable to load available vehicle plates.")
+        }
+      } finally {
+        if (active) {
+          setVehiclesLoading(false)
+        }
+      }
+    }
+
+    loadVehicles()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const handleSearch = async (event) => {
     event.preventDefault()
@@ -38,6 +71,12 @@ function VehicleSearch() {
     }
   }
 
+  const selectPlate = (selectedPlate) => {
+    setPlate(selectedPlate)
+    setError("")
+    setResult(null)
+  }
+
   const vehicle = result?.vehicle
 
   const uniqueCameraCount = vehicle?.camera_sequence
@@ -48,36 +87,22 @@ function VehicleSearch() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-
-      {/* =====================================================
-          BACKGROUND
-          ===================================================== */}
-
+      {/* BACKGROUND */}
       <div className="pointer-events-none fixed inset-0 opacity-[0.025]">
         <div className="veytra-grid h-full w-full" />
       </div>
 
       <div className="pointer-events-none absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-400/[0.025] blur-3xl" />
 
-
-      {/* =====================================================
-          HEADER
-          ===================================================== */}
-
+      {/* HEADER */}
       <header className="relative border-b border-cyan-300/[0.08] pb-6">
-
         <div className="flex items-center gap-2 text-[8px] uppercase tracking-[0.28em] text-cyan-300/50">
-
           <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#22d3ee]" />
-
           Vehicle Intelligence
-
         </div>
 
         <div className="mt-3 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-
           <div>
-
             <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
               Vehicle Search
             </h1>
@@ -86,52 +111,34 @@ function VehicleSearch() {
               Search registered observations and reconstruct a vehicle's
               movement across connected camera nodes.
             </p>
-
           </div>
 
           <div className="flex items-center gap-3">
-
             <div className="veytra-panel rounded-lg px-4 py-2.5">
-
               <div className="text-[7px] uppercase tracking-[0.2em] text-slate-600">
                 Search Engine
               </div>
 
               <div className="mt-1 flex items-center gap-2">
-
                 <span className="veytra-live-dot" />
-
                 <span className="text-[9px] uppercase tracking-[0.15em] text-cyan-200/70">
                   Operational
                 </span>
-
               </div>
-
             </div>
-
           </div>
-
         </div>
-
       </header>
 
-
-      {/* =====================================================
-          SEARCH CONSOLE
-          ===================================================== */}
-
+      {/* SEARCH CONSOLE */}
       <section className="relative mt-7">
-
         <div className="veytra-panel veytra-hud rounded-xl p-5 sm:p-6">
-
           <div className="flex items-center gap-3">
-
             <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] text-cyan-300">
               ⌕
             </div>
 
             <div>
-
               <div className="text-[8px] uppercase tracking-[0.22em] text-slate-600">
                 Query Interface
               </div>
@@ -139,19 +146,14 @@ function VehicleSearch() {
               <div className="mt-1 text-sm font-medium text-slate-300">
                 Locate vehicle trajectory
               </div>
-
             </div>
-
           </div>
-
 
           <form
             onSubmit={handleSearch}
             className="mt-6 flex flex-col gap-3 sm:flex-row"
           >
-
             <div className="relative flex-1">
-
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[9px] uppercase tracking-[0.18em] text-cyan-300/30">
                 ID
               </span>
@@ -160,9 +162,9 @@ function VehicleSearch() {
                 value={plate}
                 onChange={(event) => setPlate(event.target.value)}
                 placeholder="DL01AB1234"
+                aria-label="Vehicle registration number"
                 className="w-full rounded-lg border border-white/[0.08] bg-[#02080c] py-3.5 pl-12 pr-4 font-mono text-sm uppercase tracking-[0.15em] text-cyan-100 outline-none transition placeholder:text-slate-700 focus:border-cyan-300/30 focus:bg-cyan-300/[0.02] focus:shadow-[0_0_25px_rgba(34,211,238,0.04)]"
               />
-
             </div>
 
             <button
@@ -172,70 +174,87 @@ function VehicleSearch() {
             >
               {loading ? "Searching..." : "Search Vehicle →"}
             </button>
-
           </form>
 
+          {/* AVAILABLE PLATES */}
+          <div className="mt-6 border-t border-white/[0.05] pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[8px] uppercase tracking-[0.2em] text-slate-500">
+                Available Vehicle Plates
+              </div>
 
-          <div className="mt-4 flex flex-wrap gap-4 text-[7px] uppercase tracking-[0.16em] text-slate-700">
+              <div className="text-[8px] uppercase tracking-[0.15em] text-slate-600">
+                {vehiclesLoading
+                  ? "Loading..."
+                  : `${vehicles.length} stored`}
+              </div>
+            </div>
 
-            <span>
-              PLATE RECOGNITION
-            </span>
+            {vehiclesError && (
+              <p className="mt-3 text-xs text-amber-200/70">
+                {vehiclesError}
+              </p>
+            )}
 
-            <span>•</span>
+            {!vehiclesLoading && !vehiclesError && vehicles.length === 0 && (
+              <p className="mt-3 text-xs text-slate-600">
+                No registered vehicle plates are currently available.
+              </p>
+            )}
 
-            <span>
-              CROSS-CAMERA RE-ID
-            </span>
+            {vehicles.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {vehicles.map((item) => (
+                  <button
+                    key={item.vehicle_id}
+                    type="button"
+                    onClick={() => selectPlate(item.plate)}
+                    className={`rounded-md border px-3 py-2 font-mono text-[10px] tracking-[0.12em] transition ${
+                      plate.toUpperCase() === item.plate.toUpperCase()
+                        ? "border-cyan-300/40 bg-cyan-300/[0.09] text-cyan-100"
+                        : "border-white/[0.07] bg-white/[0.02] text-slate-400 hover:border-cyan-300/25 hover:text-cyan-100"
+                    }`}
+                    title={`Select ${item.plate}`}
+                  >
+                    {item.plate}
+                  </button>
+                ))}
+              </div>
+            )}
 
-            <span>•</span>
-
-            <span>
-              TRAJECTORY RECONSTRUCTION
-            </span>
-
+            <p className="mt-3 text-[8px] uppercase tracking-[0.12em] text-slate-700">
+              Select a plate to fill the search field, then search for its trajectory.
+            </p>
           </div>
 
+          <div className="mt-4 flex flex-wrap gap-4 text-[7px] uppercase tracking-[0.16em] text-slate-700">
+            <span>PLATE RECOGNITION</span>
+            <span>•</span>
+            <span>CROSS-CAMERA RE-ID</span>
+            <span>•</span>
+            <span>TRAJECTORY RECONSTRUCTION</span>
+          </div>
         </div>
-
       </section>
 
-
-      {/* =====================================================
-          ERROR
-          ===================================================== */}
-
+      {/* ERROR */}
       {error && (
         <div className="mt-5 rounded-lg border border-amber-300/10 bg-amber-300/[0.025] px-4 py-3">
-
           <div className="flex items-center gap-3">
-
             <span className="veytra-warning-dot" />
-
             <span className="text-[9px] uppercase tracking-[0.14em] text-amber-200/70">
               {error}
             </span>
-
           </div>
-
         </div>
       )}
 
-
-      {/* =====================================================
-          EMPTY STATE
-          ===================================================== */}
-
+      {/* EMPTY STATE */}
       {!vehicle && !loading && !error && (
-
         <div className="relative mt-8 flex min-h-[360px] items-center justify-center">
-
           <div className="text-center">
-
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-cyan-300/10 bg-cyan-300/[0.025]">
-
               <div className="h-5 w-5 rounded-full border border-cyan-300/40" />
-
             </div>
 
             <div className="mt-5 text-sm font-medium text-slate-500">
@@ -243,40 +262,25 @@ function VehicleSearch() {
             </div>
 
             <div className="mt-2 text-[8px] uppercase tracking-[0.18em] text-slate-700">
-              Enter a registration number to begin analysis
+              Enter or select a registration number to begin analysis
             </div>
-
           </div>
-
         </div>
-
       )}
 
-
-      {/* =====================================================
-          RESULT
-          ===================================================== */}
-
+      {/* RESULT */}
       {vehicle && (
-
         <div className="relative mt-8 space-y-5">
-
-          {/* Vehicle identity */}
-
+          {/* VEHICLE IDENTITY */}
           <div className="veytra-panel veytra-hud rounded-xl p-5 sm:p-6">
-
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
-
               <div>
-
                 <div className="flex items-center gap-3">
-
                   <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] text-lg text-cyan-300/70">
                     ◉
                   </div>
 
                   <div>
-
                     <div className="text-[8px] uppercase tracking-[0.22em] text-slate-600">
                       Vehicle Identified
                     </div>
@@ -284,20 +288,14 @@ function VehicleSearch() {
                     <div className="mt-1 font-mono text-2xl font-semibold tracking-[0.12em] text-cyan-100">
                       {vehicle.plate}
                     </div>
-
                   </div>
-
                 </div>
-
               </div>
 
-
               <div className="flex items-center gap-3">
-
                 <SourceBadge source={vehicle.source} />
 
                 <div className="rounded-lg border border-teal-300/10 bg-teal-300/[0.035] px-3 py-2">
-
                   <div className="text-[7px] uppercase tracking-[0.18em] text-slate-600">
                     Vehicle ID
                   </div>
@@ -305,20 +303,13 @@ function VehicleSearch() {
                   <div className="mt-1 font-mono text-[9px] text-teal-200/70">
                     {vehicle.vehicle_id}
                   </div>
-
                 </div>
-
               </div>
-
             </div>
 
-
-            {/* Time range */}
-
+            {/* TIME RANGE */}
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-
               <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] p-4">
-
                 <div className="text-[7px] uppercase tracking-[0.18em] text-slate-600">
                   First Seen
                 </div>
@@ -326,12 +317,9 @@ function VehicleSearch() {
                 <div className="mt-2 font-mono text-sm text-slate-300">
                   {vehicle.start_time}
                 </div>
-
               </div>
 
-
               <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] p-4">
-
                 <div className="text-[7px] uppercase tracking-[0.18em] text-slate-600">
                   Last Seen
                 </div>
@@ -339,12 +327,9 @@ function VehicleSearch() {
                 <div className="mt-2 font-mono text-sm text-slate-300">
                   {vehicle.end_time}
                 </div>
-
               </div>
 
-
               <div className="col-span-2 rounded-lg border border-cyan-300/[0.07] bg-cyan-300/[0.02] p-4 sm:col-span-1">
-
                 <div className="text-[7px] uppercase tracking-[0.18em] text-slate-600">
                   Camera Coverage
                 </div>
@@ -352,24 +337,14 @@ function VehicleSearch() {
                 <div className="mt-2 text-sm font-semibold text-cyan-200">
                   {uniqueCameraCount} {uniqueCameraCount === 1 ? "NODE" : "NODES"}
                 </div>
-
               </div>
-
             </div>
-
           </div>
 
-
-          {/* =================================================
-              TRAJECTORY
-              ================================================= */}
-
+          {/* TRAJECTORY */}
           <div className="veytra-panel veytra-hud rounded-xl p-5 sm:p-6">
-
             <div className="flex items-end justify-between">
-
               <div>
-
                 <div className="text-[8px] uppercase tracking-[0.22em] text-cyan-300/50">
                   Cross-Camera Analysis
                 </div>
@@ -377,39 +352,22 @@ function VehicleSearch() {
                 <h2 className="mt-2 text-lg font-medium text-slate-200">
                   Vehicle Trajectory
                 </h2>
-
               </div>
 
               <div className="hidden text-[7px] uppercase tracking-[0.18em] text-slate-700 sm:block">
                 TEMPORAL SEQUENCE
               </div>
-
             </div>
-
-
-            {/* =================================================
-                PROJECTED TRAJECTORY MAP
-                ================================================= */}
 
             <div className="mt-6">
-
               <TrajectoryMap cameraSequence={vehicle.camera_sequence} />
-
             </div>
-
           </div>
 
-
-          {/* =================================================
-              MATCH SCORE
-              ================================================= */}
-
+          {/* MATCH SCORE */}
           {vehicle.match_score && (
-
             <div className="veytra-panel veytra-hud rounded-xl p-5 sm:p-6">
-
               <div className="mb-5">
-
                 <div className="text-[8px] uppercase tracking-[0.22em] text-cyan-300/50">
                   Intelligence Confidence
                 </div>
@@ -417,38 +375,19 @@ function VehicleSearch() {
                 <h2 className="mt-2 text-lg font-medium text-slate-200">
                   Cross-Camera Match Analysis
                 </h2>
-
               </div>
 
-              <MatchScoreBreakdown
-                matchScore={vehicle.match_score}
-              />
-
+              <MatchScoreBreakdown matchScore={vehicle.match_score} />
             </div>
-
           )}
-
         </div>
-
       )}
 
-
-      {/* =====================================================
-          FOOTER
-          ===================================================== */}
-
+      {/* FOOTER */}
       <div className="flex items-center justify-between py-8 text-[7px] uppercase tracking-[0.2em] text-slate-700">
-
-        <span>
-          VEYTRA // VEHICLE INTELLIGENCE
-        </span>
-
-        <span>
-          ANPR • RE-ID • TRAJECTORY
-        </span>
-
+        <span>VEYTRA // VEHICLE INTELLIGENCE</span>
+        <span>ANPR • RE-ID • TRAJECTORY</span>
       </div>
-
     </div>
   )
 }

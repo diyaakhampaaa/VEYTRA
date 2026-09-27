@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from backend.database import SessionLocal
 from backend.models import Camera
@@ -21,30 +20,33 @@ def get_db():
 def get_cameras(db: Session = Depends(get_db)):
     cameras = db.query(Camera).all()
 
-    return {
-        "cameras": [
+    result = []
+
+    for camera in cameras:
+        location = None
+
+        if camera.location:
+            try:
+                latitude, longitude = map(
+                    float,
+                    camera.location.split(",")
+                )
+
+                location = {
+                    "latitude": latitude,
+                    "longitude": longitude,
+                }
+            except (ValueError, AttributeError):
+                location = None
+
+        result.append(
             {
                 "camera_id": camera.camera_id,
                 "status": camera.status,
                 "vehicles_detected": camera.vehicles_detected,
                 "source": camera.source,
-                "location": (
-                    {
-                        "longitude": float(
-                            db.query(
-                                func.ST_X(camera.location)
-                            ).scalar()
-                        ),
-                        "latitude": float(
-                            db.query(
-                                func.ST_Y(camera.location)
-                            ).scalar()
-                        ),
-                    }
-                    if camera.location is not None
-                    else None
-                ),
+                "location": location,
             }
-            for camera in cameras
-        ]
-    }
+        )
+
+    return {"cameras": result}

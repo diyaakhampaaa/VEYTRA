@@ -524,7 +524,7 @@ def read_plate(
 
         alternatives: list[str] = []
 
-        if (not valid) or confidence < low_cut:
+        if (not valid) or confidence < low_cut or len(normalized) == 9:
             alternatives = generate_alternatives(
                 normalized
             )

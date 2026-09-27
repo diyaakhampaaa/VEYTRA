@@ -1,3 +1,4 @@
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 
@@ -33,6 +34,17 @@ export async function searchVehicle(plate) {
 
   if (!response.ok) {
     throw new Error("Vehicle search failed")
+  }
+
+  return response.json()
+}
+
+
+export async function getVehicles() {
+  const response = await fetch(`${API_BASE_URL}/vehicles/`)
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch vehicles")
   }
 
   return response.json()
@@ -183,6 +195,7 @@ export async function getAnalytics() {
     }
   }
 }
+
 
 export async function getSimulationComparison() {
   const response = await fetch(

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo } from "react";
 import {
   MapContainer,
@@ -11,21 +12,41 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-const cameraIcon = (camera) =>
-  L.divIcon({
+const INDIA_TIMEZONE = "Asia/Kolkata";
+
+function formatTimestamp(value) {
+  if (!value) return "Unavailable";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: INDIA_TIMEZONE,
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+function formatValue(value, suffix = "") {
+  if (value === null || value === undefined || value === "") {
+    return "Unavailable";
+  }
+  return `${value}${suffix}`;
+}
+
+function cameraIcon(camera) {
+  return L.divIcon({
     className: "veytra-camera-icon",
     html: `<div class="cam-label"><span class="cam-dot"></span>${camera}</div>`,
     iconSize: [100, 32],
     iconAnchor: [8, 16],
   });
-
-const arrowIcon = (rotation) =>
-  L.divIcon({
-    className: "veytra-arrow-icon",
-    html: `<div class="route-arrow" style="transform:rotate(${rotation}deg)">➜</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
+}
 
 function midpoint(a, b) {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -44,523 +65,733 @@ function bearing(a, b) {
   return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
-function FitRoute({ trajectory }) {
+function arrowIcon(rotation) {
+  return L.divIcon({
+    className: "veytra-arrow-icon",
+    html: `<div class="route-arrow" style="transform:rotate(${rotation}deg)">➜</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
+function FitRoute({ points }) {
   const map = useMap();
 
   useEffect(() => {
-    if (trajectory.length > 0) {
-      map.fitBounds(
-        L.latLngBounds(trajectory.map((item) => item.position)),
-        {
-          padding: [50, 50],
-          maxZoom: 16,
-        }
-      );
+    if (points.length > 0) {
+      map.fitBounds(L.latLngBounds(points), {
+        padding: [45, 45],
+        maxZoom: 16,
+      });
     }
-  }, [map, trajectory]);
+  }, [map, points]);
 
   return null;
 }
 
-export default function TrajectoryMap({ cameraSequence = [] }) {
-  const trajectory = useMemo(
+function TrajectoryMap({ cameraSequence = [] }) {
+  const events = useMemo(
     () =>
-      cameraSequence
-        .filter(
-          (item) =>
-            item.location &&
-            item.location.latitude != null &&
-            item.location.longitude != null
-        )
-        .map((item) => ({
-          camera: item.camera_id,
-          timestamp: item.timestamp,
-          direction: item.direction,
-          roadName: item.road_name,
-          roadSegment: item.road_segment_id,
-          speed: item.speed_kmh,
-          trajectoryId: item.trajectory_id,
-          position: [
-            item.location.latitude,
-            item.location.longitude,
-          ],
+      [...cameraSequence]
+        .sort((a, b) => {
+          const timeA = new Date(a.timestamp).getTime();
+          const timeB = new Date(b.timestamp).getTime();
+
+          if (!Number.isNaN(timeA) && !Number.isNaN(timeB)) {
+            return timeA - timeB;
+          }
+          return 0;
+        })
+        .map((item, index) => ({
+          ...item,
+          eventKey: item.event_id || `${item.camera_id || "camera"}-${index}`,
         })),
     [cameraSequence]
   );
 
+  const geoEvents = useMemo(
+    () =>
+      events
+        .filter(
+          (item) =>
+            item.location &&
+            Number.isFinite(Number(item.location.latitude)) &&
+            Number.isFinite(Number(item.location.longitude))
+        )
+        .map((item) => ({
+          ...item,
+          position: [
+            Number(item.location.latitude),
+            Number(item.location.longitude),
+          ],
+        })),
+    [events]
+  );
+
   const route = useMemo(
-    () => trajectory.map((item) => item.position),
-    [trajectory]
+    () => geoEvents.map((item) => item.position),
+    [geoEvents]
   );
 
   const arrows = useMemo(
     () =>
-      trajectory.slice(0, -1).map((item, index) => ({
+      geoEvents.slice(0, -1).map((item, index) => ({
         position: midpoint(
           item.position,
-          trajectory[index + 1].position
+          geoEvents[index + 1].position
         ),
         rotation: bearing(
           item.position,
-          trajectory[index + 1].position
+          geoEvents[index + 1].position
         ),
       })),
-    [trajectory]
+    [geoEvents]
   );
 
-  const mapCenter = trajectory[0]?.position || [28.615, 77.215];
+  const cameraCount = new Set(
+    events.map((item) => item.camera_id).filter(Boolean)
+  ).size;
+
+  const hasMapCoordinates = geoEvents.length > 0;
+  const hasRoute = geoEvents.length > 1;
+  const mapCenter = geoEvents[0]?.position || [28.66, 77.225];
 
   return (
     <section className="trajectory-panel">
       <div className="trajectory-title">
         <div>
           <div className="eyebrow">CROSS-CAMERA ANALYSIS</div>
-          <h2>Projected Vehicle Trajectory</h2>
+          <h2>Vehicle Trajectory</h2>
+          <p className="trajectory-subtitle">
+            Observed camera sequence and available location data
+          </p>
         </div>
 
-        <div className="legend">
-          <span>
-            <i className="legend-line" /> Vehicle trajectory
-          </span>
-
-          <span>
-            <i className="legend-dot" /> Camera location
-          </span>
+        <div className="trajectory-summary">
+          <div>
+            <strong>{cameraCount}</strong>
+            <span>CAMERAS</span>
+          </div>
+          <div>
+            <strong>{events.length}</strong>
+            <span>OBSERVATIONS</span>
+          </div>
         </div>
       </div>
 
-      <div className="trajectory-map-shell">
-        <MapContainer
-          center={mapCenter}
-          zoom={15}
-          scrollWheelZoom
-          className="trajectory-map"
-        >
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+      {hasMapCoordinates ? (
+        <>
+          <div className="map-heading">
+            <span>LOCATION VIEW</span>
+            <span>
+              {hasRoute
+                ? "Coordinates available for route display"
+                : "One camera location available"}
+            </span>
+          </div>
 
-          <FitRoute trajectory={trajectory} />
-
-          {route.length > 1 && (
-            <Polyline
-              positions={route}
-              pathOptions={{
-                color: "#16e5ff",
-                weight: 5,
-                opacity: 0.95,
-                lineCap: "round",
-                lineJoin: "round",
-              }}
-            />
-          )}
-
-          {arrows.map((arrow, index) => (
-            <Marker
-              key={index}
-              position={arrow.position}
-              icon={arrowIcon(arrow.rotation)}
-              interactive={false}
-            />
-          ))}
-
-          {trajectory.map((item, index) => (
-            <React.Fragment key={`${item.camera}-${index}`}>
-              <CircleMarker
-                center={item.position}
-                radius={9}
-                pathOptions={{
-                  color: "#16e5ff",
-                  weight: 2,
-                  fillColor: "#06131d",
-                  fillOpacity: 1,
-                }}
+          <div className="trajectory-map-shell">
+            <MapContainer
+              center={mapCenter}
+              zoom={15}
+              scrollWheelZoom
+              className="trajectory-map"
+            >
+              <TileLayer
+                attribution="&copy; OpenStreetMap contributors"
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              <Marker
-                position={item.position}
-                icon={cameraIcon(item.camera)}
-              >
-                <Popup>
-                  <strong>{item.camera}</strong>
-                  <br />
-                  {item.timestamp}
-                  <br />
-                  Direction: {item.direction}
-                  <br />
-                  Road: {item.roadName}
-                  <br />
-                  Speed: {item.speed} km/h
-                </Popup>
-              </Marker>
+              <FitRoute points={route} />
+
+              {hasRoute && (
+                <Polyline
+                  positions={route}
+                  pathOptions={{
+                    color: "#16e5ff",
+                    weight: 5,
+                    opacity: 0.95,
+                    lineCap: "round",
+                    lineJoin: "round",
+                  }}
+                />
+              )}
+
+              {arrows.map((arrow, index) => (
+                <Marker
+                  key={`arrow-${index}`}
+                  position={arrow.position}
+                  icon={arrowIcon(arrow.rotation)}
+                  interactive={false}
+                />
+              ))}
+
+              {geoEvents.map((item, index) => (
+                <React.Fragment key={item.eventKey}>
+                  <CircleMarker
+                    center={item.position}
+                    radius={9}
+                    pathOptions={{
+                      color: "#16e5ff",
+                      weight: 2,
+                      fillColor: "#06131d",
+                      fillOpacity: 1,
+                    }}
+                  />
+
+                  <Marker
+                    position={item.position}
+                    icon={cameraIcon(item.camera_id || "Camera")}
+                  >
+                    <Popup>
+                      <strong>{item.camera_id || "Camera"}</strong>
+                      <br />
+                      {formatTimestamp(item.timestamp)}
+                      <br />
+                      Direction: {formatValue(item.direction)}
+                      <br />
+                      Road: {formatValue(item.road_name)}
+                      <br />
+                      Speed: {formatValue(item.speed_kmh, " km/h")}
+                    </Popup>
+                  </Marker>
+                </React.Fragment>
+              ))}
+            </MapContainer>
+
+            <div className="north">
+              ▲<small>N</small>
+            </div>
+
+            <div className="map-status">
+              <span />
+              {hasRoute
+                ? "COORDINATE-BASED PATH"
+                : "SINGLE LOCATION — NO PATH"}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="no-route-panel">
+          <div className="no-route-icon">⌖</div>
+          <div className="no-route-title">
+            Route geometry unavailable
+          </div>
+          <p>
+            Camera sightings were recorded, but GPS coordinates are not
+            available for these events. The camera sequence below shows
+            the observed journey without drawing an estimated road route.
+          </p>
+          <div className="no-route-meta">
+            {cameraCount} {cameraCount === 1 ? "camera" : "cameras"} ·{" "}
+            {events.length} {events.length === 1 ? "observation" : "observations"}
+          </div>
+        </div>
+      )}
+
+      <div className="sequence-heading">
+        <div>
+          <div className="eyebrow">OBSERVATION RECORD</div>
+          <h3>Camera Sequence</h3>
+        </div>
+        <span className="sequence-count">
+          {events.length} EVENTS
+        </span>
+      </div>
+
+      {events.length > 0 ? (
+        <div className="trajectory-events">
+          {events.map((item, index) => (
+            <React.Fragment key={item.eventKey}>
+              <article className="event-card">
+                <div className="event-number">
+                  {String(index + 1).padStart(2, "0")}
+                </div>
+
+                <div className="event-body">
+                  <div className="event-topline">
+                    <div>
+                      <div className="event-camera">
+                        {item.camera_id || "Unknown camera"}
+                      </div>
+                      <div className="event-type">CAMERA OBSERVATION</div>
+                    </div>
+                    <span className="event-index">
+                      EVENT {String(index + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+
+                  <div className="divider" />
+
+                  <div className="event-row">
+                    <span>TIMESTAMP</span>
+                    <strong>{formatTimestamp(item.timestamp)}</strong>
+                  </div>
+
+                  <div className="event-row">
+                    <span>DIRECTION</span>
+                    <strong>{formatValue(item.direction)}</strong>
+                  </div>
+
+                  <div className="event-row">
+                    <span>ROAD</span>
+                    <strong>{formatValue(item.road_name)}</strong>
+                  </div>
+
+                  <div className="event-row">
+                    <span>SPEED</span>
+                    <strong>{formatValue(item.speed_kmh, " km/h")}</strong>
+                  </div>
+
+                  {item.location && (
+                    <div className="event-row">
+                      <span>LOCATION</span>
+                      <strong>
+                        {Number(item.location.latitude).toFixed(5)},{" "}
+                        {Number(item.location.longitude).toFixed(5)}
+                      </strong>
+                    </div>
+                  )}
+                </div>
+              </article>
+
+              {index < events.length - 1 && (
+                <div className="connector" aria-hidden="true">
+                  →
+                </div>
+              )}
             </React.Fragment>
           ))}
-        </MapContainer>
-
-        <div className="north">
-          ▲<small>N</small>
         </div>
-
-        <div className="map-status">
-          <span /> PROJECTED ROUTE{" "}
-          <b>
-            {trajectory.length > 0
-              ? trajectory.map((item) => item.camera).join(" → ")
-              : "NO ROUTE DATA"}
-          </b>
+      ) : (
+        <div className="no-events">
+          No camera observations are available for this vehicle.
         </div>
-      </div>
-
-      <div className="trajectory-events">
-        {trajectory.map((item, index) => (
-          <React.Fragment key={`${item.camera}-${index}`}>
-            <article className="event-card">
-              <div className="event-number">
-                {String(index + 1).padStart(2, "0")}
-              </div>
-
-              <div className="event-body">
-                <div className="event-camera">{item.camera}</div>
-
-                <div className="event-type">CAMERA NODE</div>
-
-                <div className="divider" />
-
-                <div className="event-row">
-                  <span>TIMESTAMP</span>
-                  <strong>{item.timestamp}</strong>
-                </div>
-
-                <div className="event-row">
-                  <span>DIRECTION</span>
-                  <strong>{item.direction}</strong>
-                </div>
-
-                <div className="event-row">
-                  <span>ROAD</span>
-                  <strong>{item.roadName}</strong>
-                </div>
-
-                <div className="event-row">
-                  <span>SPEED</span>
-                  <strong>{item.speed} km/h</strong>
-                </div>
-              </div>
-            </article>
-
-            {index < trajectory.length - 1 && (
-              <div className="connector">→</div>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
+      )}
 
       <style>{`
-        .trajectory-panel{
-          width:100%;
-          margin:28px 0;
-          padding:24px;
-          box-sizing:border-box;
-          border:1px solid rgba(22,229,255,.2);
-          border-radius:18px;
-          background:#07101a;
-          color:#eef7fb;
-          overflow:hidden;
-          font-family:Inter,system-ui,sans-serif
+        .trajectory-panel {
+          width: 100%;
+          margin: 28px 0;
+          padding: 24px;
+          box-sizing: border-box;
+          border: 1px solid rgba(22,229,255,.2);
+          border-radius: 18px;
+          background: #07101a;
+          color: #eef7fb;
+          overflow: hidden;
+          font-family: Inter, system-ui, sans-serif;
         }
 
-        .trajectory-title{
-          display:flex;
-          justify-content:space-between;
-          align-items:end;
-          gap:20px;
-          margin-bottom:18px
+        .trajectory-title {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 20px;
+          margin-bottom: 22px;
         }
 
-        .eyebrow{
-          color:#16e5ff;
-          font-size:11px;
-          font-weight:700;
-          letter-spacing:.18em;
-          margin-bottom:7px
+        .eyebrow {
+          color: #16e5ff;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: .18em;
+          margin-bottom: 7px;
         }
 
-        .trajectory-title h2{
-          margin:0;
-          font-size:24px;
-          letter-spacing:-.02em
+        .trajectory-title h2,
+        .sequence-heading h3 {
+          margin: 0;
+          font-size: 22px;
+          font-weight: 600;
+          letter-spacing: -.02em;
         }
 
-        .legend{
-          display:flex;
-          gap:18px;
-          color:#91a9b5;
-          font-size:11px;
-          text-transform:uppercase;
-          letter-spacing:.08em
+        .trajectory-subtitle {
+          margin: 7px 0 0;
+          color: #8299a5;
+          font-size: 12px;
+          line-height: 1.6;
         }
 
-        .legend span{
-          display:flex;
-          align-items:center;
-          gap:7px
+        .trajectory-summary {
+          display: flex;
+          gap: 10px;
         }
 
-        .legend-line{
-          width:23px;
-          height:3px;
-          border-radius:5px;
-          background:#16e5ff;
-          box-shadow:0 0 8px rgba(22,229,255,.7)
+        .trajectory-summary > div {
+          min-width: 76px;
+          padding: 10px 12px;
+          border: 1px solid rgba(22,229,255,.13);
+          border-radius: 9px;
+          background: rgba(22,229,255,.025);
+          text-align: center;
         }
 
-        .legend-dot{
-          width:9px;
-          height:9px;
-          border:2px solid #16e5ff;
-          border-radius:50%
+        .trajectory-summary strong {
+          display: block;
+          color: #dffaff;
+          font-family: ui-monospace, monospace;
+          font-size: 19px;
         }
 
-        .trajectory-map-shell{
-          position:relative;
-          height:430px;
-          border:1px solid rgba(22,229,255,.25);
-          border-radius:14px;
-          overflow:hidden;
-          background:#07151f
+        .trajectory-summary span {
+          display: block;
+          margin-top: 4px;
+          color: #63808d;
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: .12em;
         }
 
-        .trajectory-map{
-          width:100%;
-          height:100%;
-          background:#07151f
+        .map-heading {
+          display: flex;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 10px;
+          color: #718c98;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: .12em;
+          text-transform: uppercase;
         }
 
-        .trajectory-map .leaflet-tile{
-          filter:brightness(.42) saturate(.55) hue-rotate(155deg) contrast(1.12)
+        .trajectory-map-shell {
+          position: relative;
+          height: 390px;
+          border: 1px solid rgba(22,229,255,.25);
+          border-radius: 14px;
+          overflow: hidden;
+          background: #07151f;
+        }
+
+        .trajectory-map {
+          width: 100%;
+          height: 100%;
+          background: #07151f;
+        }
+
+        .trajectory-map .leaflet-tile {
+          filter: brightness(.42) saturate(.55) hue-rotate(155deg) contrast(1.12);
         }
 
         .veytra-camera-icon,
-        .veytra-arrow-icon{
-          background:transparent!important;
-          border:0!important
+        .veytra-arrow-icon {
+          background: transparent !important;
+          border: 0 !important;
         }
 
-        .cam-label{
-          display:flex;
-          align-items:center;
-          gap:7px;
-          width:max-content;
-          padding:5px 8px;
-          border:1px solid rgba(22,229,255,.55);
-          border-radius:6px;
-          background:rgba(4,16,25,.94);
-          color:#eafcff;
-          font-size:12px;
-          font-weight:800;
-          letter-spacing:.05em
+        .cam-label {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          width: max-content;
+          padding: 5px 8px;
+          border: 1px solid rgba(22,229,255,.55);
+          border-radius: 6px;
+          background: rgba(4,16,25,.94);
+          color: #eafcff;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: .05em;
         }
 
-        .cam-dot{
-          width:7px;
-          height:7px;
-          border-radius:50%;
-          background:#16e5ff;
-          box-shadow:0 0 10px #16e5ff
+        .cam-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #16e5ff;
+          box-shadow: 0 0 10px #16e5ff;
         }
 
-        .route-arrow{
-          color:#16e5ff;
-          font-size:24px;
-          font-weight:900;
-          text-shadow:0 0 10px rgba(22,229,255,.9)
+        .route-arrow {
+          color: #16e5ff;
+          font-size: 24px;
+          font-weight: 900;
+          text-shadow: 0 0 10px rgba(22,229,255,.9);
         }
 
-        .north{
-          position:absolute;
-          top:16px;
-          right:16px;
-          z-index:500;
-          width:43px;
-          height:49px;
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          justify-content:center;
-          border:1px solid rgba(22,229,255,.35);
-          border-radius:8px;
-          background:rgba(4,15,24,.88);
-          color:#16e5ff;
-          pointer-events:none
+        .north {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          z-index: 500;
+          width: 43px;
+          height: 49px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(22,229,255,.35);
+          border-radius: 8px;
+          background: rgba(4,15,24,.88);
+          color: #16e5ff;
+          pointer-events: none;
         }
 
-        .north small{
-          font-size:9px
+        .north small {
+          font-size: 9px;
         }
 
-        .map-status{
-          position:absolute;
-          left:15px;
-          bottom:15px;
-          z-index:500;
-          display:flex;
-          align-items:center;
-          gap:8px;
-          padding:9px 12px;
-          border:1px solid rgba(22,229,255,.28);
-          border-radius:7px;
-          background:rgba(4,15,24,.9);
-          color:#9bb2bd;
-          font-size:10px;
-          font-weight:700;
-          letter-spacing:.1em;
-          pointer-events:none
+        .map-status {
+          position: absolute;
+          left: 15px;
+          bottom: 15px;
+          z-index: 500;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px 12px;
+          border: 1px solid rgba(22,229,255,.28);
+          border-radius: 7px;
+          background: rgba(4,15,24,.9);
+          color: #c3d6de;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: .1em;
+          pointer-events: none;
         }
 
-        .map-status span{
-          width:7px;
-          height:7px;
-          border-radius:50%;
-          background:#16e5ff;
-          box-shadow:0 0 9px #16e5ff
+        .map-status span {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #16e5ff;
+          box-shadow: 0 0 9px #16e5ff;
         }
 
-        .map-status b{
-          color:#eafcff
+        .no-route-panel {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 190px;
+          padding: 24px;
+          border: 1px dashed rgba(22,229,255,.22);
+          border-radius: 13px;
+          background: rgba(22,229,255,.018);
+          text-align: center;
         }
 
-        .trajectory-events{
-          display:flex;
-          align-items:center;
-          gap:12px;
-          margin-top:18px;
-          overflow-x:auto;
-          overflow-y:hidden;
-          padding-bottom:10px;
-          scroll-behavior:smooth
+        .no-route-icon {
+          display: grid;
+          place-items: center;
+          width: 42px;
+          height: 42px;
+          margin-bottom: 12px;
+          border: 1px solid rgba(22,229,255,.3);
+          border-radius: 50%;
+          color: #16e5ff;
+          font-size: 23px;
         }
 
-        .trajectory-events::-webkit-scrollbar{
-          height:6px
+        .no-route-title {
+          color: #dcecf2;
+          font-size: 14px;
+          font-weight: 600;
         }
 
-        .trajectory-events::-webkit-scrollbar-track{
-          background:rgba(255,255,255,.04);
-          border-radius:10px
+        .no-route-panel p {
+          max-width: 490px;
+          margin: 8px 0 0;
+          color: #8196a1;
+          font-size: 12px;
+          line-height: 1.7;
         }
 
-        .trajectory-events::-webkit-scrollbar-thumb{
-          background:rgba(22,229,255,.35);
-          border-radius:10px
+        .no-route-meta {
+          margin-top: 13px;
+          color: #16e5ff;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: .12em;
+          text-transform: uppercase;
         }
 
-        .trajectory-events::-webkit-scrollbar-thumb:hover{
-          background:rgba(22,229,255,.55)
+        .sequence-heading {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 12px;
+          margin-top: 25px;
+          margin-bottom: 14px;
         }
 
-        .event-card{
-          flex:0 0 360px;
-          min-height:160px;
-          padding:20px;
-          display:flex;
-          gap:16px;
-          box-sizing:border-box;
-          border:1px solid rgba(22,229,255,.18);
-          border-radius:13px;
-          background:rgba(2,9,15,.78)
+        .sequence-heading h3 {
+          font-size: 17px;
         }
 
-        .event-number{
-          width:42px;
-          height:42px;
-          flex:0 0 42px;
-          display:grid;
-          place-items:center;
-          border:1px solid rgba(22,229,255,.65);
-          border-radius:50%;
-          color:#16e5ff;
-          font-size:12px;
-          font-weight:800
+        .sequence-count {
+          color: #78909b;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: .12em;
         }
 
-        .event-body{
-          flex:1
+        .trajectory-events {
+          display: flex;
+          align-items: stretch;
+          gap: 12px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-bottom: 10px;
+          scroll-behavior: smooth;
         }
 
-        .event-camera{
-          font-size:17px;
-          font-weight:800
+        .trajectory-events::-webkit-scrollbar {
+          height: 6px;
         }
 
-        .event-type{
-          margin-top:4px;
-          color:#477384;
-          font-size:10px;
-          font-weight:700;
-          letter-spacing:.14em
+        .trajectory-events::-webkit-scrollbar-track {
+          background: rgba(255,255,255,.04);
+          border-radius: 10px;
         }
 
-        .divider{
-          height:1px;
-          margin:17px 0;
-          background:rgba(255,255,255,.08)
+        .trajectory-events::-webkit-scrollbar-thumb {
+          background: rgba(22,229,255,.35);
+          border-radius: 10px;
         }
 
-        .event-row{
-          display:flex;
-          justify-content:space-between;
-          gap:12px;
-          margin-top:10px
+        .event-card {
+          flex: 0 0 330px;
+          min-width: 0;
+          padding: 17px;
+          display: flex;
+          gap: 13px;
+          box-sizing: border-box;
+          border: 1px solid rgba(22,229,255,.18);
+          border-radius: 13px;
+          background: rgba(2,9,15,.78);
         }
 
-        .event-row span{
-          color:#526b78;
-          font-size:9px;
-          font-weight:700;
-          letter-spacing:.13em
+        .event-number {
+          width: 36px;
+          height: 36px;
+          flex: 0 0 36px;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(22,229,255,.65);
+          border-radius: 50%;
+          color: #16e5ff;
+          font-size: 11px;
+          font-weight: 800;
         }
 
-        .event-row strong{
-          color:#8ca7b3;
-          font-size:11px
+        .event-body {
+          flex: 1;
+          min-width: 0;
         }
 
-        .event-row:last-child strong{
-          color:#16e5ff
+        .event-topline {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 8px;
         }
 
-        .connector{
-          flex:0 0 auto;
-          color:#16e5ff;
-          font-size:24px;
-          text-align:center;
-          text-shadow:0 0 9px rgba(22,229,255,.6)
+        .event-camera {
+          color: #eef7fb;
+          font-size: 16px;
+          font-weight: 800;
         }
 
-        @media(max-width:900px){
-          .trajectory-title{
-            align-items:flex-start;
-            flex-direction:column
+        .event-type {
+          margin-top: 4px;
+          color: #63808d;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: .12em;
+        }
+
+        .event-index {
+          flex: 0 0 auto;
+          color: #58717d;
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: .08em;
+        }
+
+        .divider {
+          height: 1px;
+          margin: 13px 0;
+          background: rgba(255,255,255,.08);
+        }
+
+        .event-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          margin-top: 10px;
+        }
+
+        .event-row span {
+          flex: 0 0 auto;
+          color: #68808b;
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: .1em;
+        }
+
+        .event-row strong {
+          min-width: 0;
+          color: #b3c6ce;
+          font-size: 10px;
+          font-weight: 500;
+          text-align: right;
+          overflow-wrap: anywhere;
+        }
+
+        .connector {
+          flex: 0 0 auto;
+          align-self: center;
+          color: #16e5ff;
+          font-size: 21px;
+          text-shadow: 0 0 9px rgba(22,229,255,.6);
+        }
+
+        .no-events {
+          padding: 20px;
+          border: 1px solid rgba(255,255,255,.07);
+          border-radius: 10px;
+          color: #8299a5;
+          font-size: 12px;
+          text-align: center;
+        }
+
+        @media (max-width: 700px) {
+          .trajectory-panel {
+            padding: 16px;
           }
 
-          .legend{
-            flex-wrap:wrap
+          .trajectory-title {
+            flex-direction: column;
           }
 
-          .trajectory-events{
-            gap:10px
+          .trajectory-summary {
+            width: 100%;
           }
 
-          .event-card{
-            flex:0 0 300px
+          .trajectory-summary > div {
+            flex: 1;
           }
 
-          .trajectory-map-shell{
-            height:360px
+          .trajectory-map-shell {
+            height: 320px;
+          }
+
+          .event-card {
+            flex-basis: min(300px, 82vw);
+          }
+
+          .map-heading {
+            flex-direction: column;
           }
         }
       `}</style>
     </section>
   );
 }
+
+export default TrajectoryMap;

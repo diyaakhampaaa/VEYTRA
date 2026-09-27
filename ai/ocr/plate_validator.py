@@ -11,6 +11,10 @@ from typing import Iterable
 # AP10AR0658
 # TS09EG6531
 _STANDARD = re.compile(r"^[A-Z]{2}[0-9]{2}[A-Z]{1,3}[0-9]{4}$")
+_LEGACY = re.compile(r"^[A-Z]{2}[0-9][A-Z]{2}[0-9]{4}$")
+_STANDARD = re.compile(r"^[A-Z]{2}[0-9]{2}[A-Z]{1,3}[0-9]{4}$")
+_LEGACY = re.compile(r"^[A-Z]{2}[0-9][A-Z]{2}[0-9]{4}$")
+_LEGACY = re.compile(r"^[A-Z]{2}[0-9][A-Z]{2}[0-9]{4}$")
 
 # Bharat series:
 # YY BH #### XX
@@ -29,6 +33,9 @@ _CONFUSION_PAIRS: tuple[tuple[str, str], ...] = (
     ("5", "S"),
     ("2", "Z"),
     ("8", "3"),
+    ("H", "N"),
+    ("H", "N"),
+    ("H", "N"),
 )
 
 _DEFAULT_ALT_LIMIT = 5
@@ -78,7 +85,7 @@ def is_valid_indian_plate(text: str) -> bool:
     if not text:
         return False
 
-    if _STANDARD.fullmatch(text) or _BHARAT.fullmatch(text):
+    if _STANDARD.fullmatch(text) or _LEGACY.fullmatch(text) or _BHARAT.fullmatch(text):
         return True
 
     return any(pattern.fullmatch(text) for pattern in _extra_patterns())
@@ -90,6 +97,19 @@ def _slot_kind(text: str, index: int) -> str | None:
     a letter or digit for near-standard plate lengths.
     """
     n = len(text)
+
+    if n == 9 and text[:2].isalpha() and text[2].isdigit():
+        # LL D LL NNNN
+        if index < 2:
+            return "L"
+
+        if index == 2:
+            return "D"
+
+        if index < 5:
+            return "L"
+
+        return "D"
 
     if 9 <= n <= 11 and text[:2].isalpha():
         # LL DD (L{1,3}) NNNN

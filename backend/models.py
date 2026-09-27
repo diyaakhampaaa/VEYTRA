@@ -31,6 +31,9 @@ class Vehicle(Base):
     temporal_score = Column(Float, nullable=True)
     route_score = Column(Float, nullable=True)
 
+    ocr_confidence = Column(Float, nullable=True)
+    route_score = Column(Float, nullable=True)
+
 class VehicleCameraEvent(Base):
     __tablename__ = "vehicle_camera_events"
     id = Column(Integer, primary_key=True, autoincrement=True)
