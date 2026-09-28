@@ -27,6 +27,7 @@ function MapView({ cameras: backendCameras = [] }) {
       coverage: "—",
     }
   })
+
   const vehicles = [
     {
       id: "V1",
@@ -102,16 +103,18 @@ function MapView({ cameras: backendCameras = [] }) {
           MAP BACKGROUND
           ===================================================== */}
 
-      <div className="absolute inset-0">
+      <div className="absolute inset-[-12%]">
 
-        <div className="absolute inset-0 bg-[#030b10]" />
+        {/* Very dark base */}
+        <div className="absolute inset-0 bg-[#010509]" />
 
-        <div className="absolute inset-0 opacity-[0.13]">
+        {/* Subtle grid */}
+        <div className="absolute inset-0 opacity-[0.09]">
           <div
             className="h-full w-full"
             style={{
               backgroundImage:
-                "linear-gradient(to right, rgba(34,211,238,0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(34,211,238,0.14) 1px, transparent 1px)",
+                "linear-gradient(to right, rgba(34,211,238,0.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(34,211,238,0.18) 1px, transparent 1px)",
               backgroundSize: "55px 55px",
             }}
           />
@@ -121,19 +124,19 @@ function MapView({ cameras: backendCameras = [] }) {
             CITY BLOCKS
             ================================================= */}
 
-        <div className="absolute left-[6%] top-[14%] h-24 w-32 border border-cyan-300/[0.05] bg-white/[0.012]" />
+        <div className="absolute left-[6%] top-[14%] h-24 w-32 border border-cyan-300/[0.035] bg-white/[0.006]" />
 
-        <div className="absolute left-[10%] top-[29%] h-16 w-20 border border-cyan-300/[0.04] bg-white/[0.01]" />
+        <div className="absolute left-[10%] top-[29%] h-16 w-20 border border-cyan-300/[0.03] bg-white/[0.005]" />
 
-        <div className="absolute left-[27%] top-[17%] h-20 w-28 border border-cyan-300/[0.035] bg-white/[0.008]" />
+        <div className="absolute left-[27%] top-[17%] h-20 w-28 border border-cyan-300/[0.025] bg-white/[0.004]" />
 
-        <div className="absolute right-[7%] top-[16%] h-28 w-28 border border-cyan-300/[0.05] bg-white/[0.012]" />
+        <div className="absolute right-[7%] top-[16%] h-28 w-28 border border-cyan-300/[0.035] bg-white/[0.006]" />
 
-        <div className="absolute right-[17%] top-[33%] h-20 w-24 border border-cyan-300/[0.04] bg-white/[0.01]" />
+        <div className="absolute right-[17%] top-[33%] h-20 w-24 border border-cyan-300/[0.03] bg-white/[0.005]" />
 
-        <div className="absolute bottom-[10%] left-[7%] h-20 w-36 border border-cyan-300/[0.04] bg-white/[0.01]" />
+        <div className="absolute bottom-[10%] left-[7%] h-20 w-36 border border-cyan-300/[0.03] bg-white/[0.005]" />
 
-        <div className="absolute bottom-[14%] right-[8%] h-24 w-32 border border-cyan-300/[0.04] bg-white/[0.01]" />
+        <div className="absolute bottom-[14%] right-[8%] h-24 w-32 border border-cyan-300/[0.03] bg-white/[0.005]" />
 
         {/* =================================================
             CITY ROAD NETWORK
@@ -145,116 +148,198 @@ function MapView({ cameras: backendCameras = [] }) {
           preserveAspectRatio="none"
         >
 
-          {/* Main horizontal corridor */}
+          <defs>
+
+            <filter
+              id="roadGlow"
+              x="-50%"
+              y="-50%"
+              width="200%"
+              height="200%"
+            >
+              <feGaussianBlur
+                stdDeviation="1.8"
+                result="blur"
+              />
+            </filter>
+
+            <filter
+              id="strongRoadGlow"
+              x="-100%"
+              y="-100%"
+              width="300%"
+              height="300%"
+            >
+              <feGaussianBlur
+                stdDeviation="3"
+                result="blur"
+              />
+            </filter>
+
+          </defs>
+
+          {/* =============================================
+              HORIZONTAL ROAD
+              ============================================= */}
 
           <path
             d="M -5 59 C 20 58, 35 57, 50 58 C 68 59, 84 58, 105 57"
             fill="none"
-            stroke="#09171e"
+            stroke="#050e14"
             strokeWidth="9"
           />
 
+          {/* Wide glow */}
           <path
             d="M -5 59 C 20 58, 35 57, 50 58 C 68 59, 84 58, 105 57"
             fill="none"
-            stroke="rgba(34,211,238,0.12)"
-            strokeWidth="0.35"
+            stroke="rgba(34,211,238,0.28)"
+            strokeWidth="1.8"
+            filter="url(#strongRoadGlow)"
+          />
+
+          {/* Bright edge */}
+          <path
+            d="M -5 59 C 20 58, 35 57, 50 58 C 68 59, 84 58, 105 57"
+            fill="none"
+            stroke="rgba(34,211,238,0.78)"
+            strokeWidth="0.45"
             strokeDasharray="2 2"
           />
 
-          {/* Central vertical corridor */}
+          {/* =============================================
+              VERTICAL ROAD
+              ============================================= */}
 
           <path
             d="M 51 -5 C 50 18, 51 35, 50 58 C 49 75, 51 88, 50 105"
             fill="none"
-            stroke="#09171e"
+            stroke="#050e14"
             strokeWidth="8"
           />
 
           <path
             d="M 51 -5 C 50 18, 51 35, 50 58 C 49 75, 51 88, 50 105"
             fill="none"
-            stroke="rgba(34,211,238,0.11)"
-            strokeWidth="0.3"
+            stroke="rgba(34,211,238,0.25)"
+            strokeWidth="1.7"
+            filter="url(#strongRoadGlow)"
+          />
+
+          <path
+            d="M 51 -5 C 50 18, 51 35, 50 58 C 49 75, 51 88, 50 105"
+            fill="none"
+            stroke="rgba(34,211,238,0.72)"
+            strokeWidth="0.42"
             strokeDasharray="2 2"
           />
 
-          {/* North-west diagonal */}
+          {/* =============================================
+              NORTH-WEST DIAGONAL
+              ============================================= */}
 
           <path
             d="M 8 5 C 20 20, 31 34, 50 58"
             fill="none"
-            stroke="#08151b"
+            stroke="#050e14"
             strokeWidth="7"
           />
 
           <path
             d="M 8 5 C 20 20, 31 34, 50 58"
             fill="none"
-            stroke="rgba(34,211,238,0.08)"
-            strokeWidth="0.3"
+            stroke="rgba(34,211,238,0.22)"
+            strokeWidth="1.6"
+            filter="url(#roadGlow)"
+          />
+
+          <path
+            d="M 8 5 C 20 20, 31 34, 50 58"
+            fill="none"
+            stroke="rgba(34,211,238,0.68)"
+            strokeWidth="0.4"
             strokeDasharray="2 2"
           />
 
-          {/* South-east diagonal */}
+          {/* =============================================
+              SOUTH-EAST DIAGONAL
+              ============================================= */}
 
           <path
             d="M 50 58 C 65 66, 79 82, 94 101"
             fill="none"
-            stroke="#08151b"
+            stroke="#050e14"
             strokeWidth="7"
           />
 
           <path
             d="M 50 58 C 65 66, 79 82, 94 101"
             fill="none"
-            stroke="rgba(34,211,238,0.08)"
-            strokeWidth="0.3"
+            stroke="rgba(34,211,238,0.22)"
+            strokeWidth="1.6"
+            filter="url(#roadGlow)"
+          />
+
+          <path
+            d="M 50 58 C 65 66, 79 82, 94 101"
+            fill="none"
+            stroke="rgba(34,211,238,0.68)"
+            strokeWidth="0.4"
             strokeDasharray="2 2"
           />
 
-          {/* North-east corridor */}
+          {/* =============================================
+              NORTH-EAST DIAGONAL
+              ============================================= */}
 
           <path
             d="M 92 4 C 78 20, 65 36, 50 58"
             fill="none"
-            stroke="#071319"
+            stroke="#050e14"
             strokeWidth="6"
           />
 
           <path
             d="M 92 4 C 78 20, 65 36, 50 58"
             fill="none"
-            stroke="rgba(255,255,255,0.05)"
-            strokeWidth="0.25"
+            stroke="rgba(34,211,238,0.20)"
+            strokeWidth="1.5"
+            filter="url(#roadGlow)"
+          />
+
+          <path
+            d="M 92 4 C 78 20, 65 36, 50 58"
+            fill="none"
+            stroke="rgba(34,211,238,0.62)"
+            strokeWidth="0.38"
             strokeDasharray="2 2"
           />
 
         </svg>
 
         {/* =================================================
-            ORIGINAL TRAFFIC MAP HEAT ZONES
+            TRAFFIC HEAT ZONES
             ================================================= */}
 
-        <div className="absolute left-[14%] top-[52%] h-16 w-32 rounded-full bg-cyan-400/[0.05] blur-2xl" />
+        <div className="absolute left-[14%] top-[52%] h-16 w-32 rounded-full bg-cyan-400/[0.07] blur-2xl" />
 
-        <div className="absolute left-[40%] top-[52%] h-20 w-40 rounded-full bg-amber-300/[0.07] blur-2xl" />
+        <div className="absolute left-[40%] top-[52%] h-20 w-40 rounded-full bg-amber-300/[0.10] blur-2xl" />
 
-        <div className="absolute right-[12%] top-[51%] h-20 w-32 rounded-full bg-orange-300/[0.06] blur-2xl" />
+        <div className="absolute right-[12%] top-[51%] h-20 w-32 rounded-full bg-orange-300/[0.08] blur-2xl" />
 
-        <div className="absolute left-[47%] top-[25%] h-20 w-16 rounded-full bg-cyan-300/[0.035] blur-2xl" />
+        <div className="absolute left-[47%] top-[25%] h-20 w-16 rounded-full bg-cyan-300/[0.05] blur-2xl" />
 
-        {/* Center glow */}
-
-        <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/[0.025] blur-3xl" />
+        {/* Central cyan atmospheric glow */}
+        <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/[0.04] blur-3xl" />
 
         {/* Scanlines */}
-
         <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(34,211,238,0.018)_50%)] bg-[length:100%_4px]" />
 
-        {/* Vignette */}
+        {/* Strong cinematic vignette */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_8%,rgba(0,0,0,0.84)_100%)]" />
 
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(0,0,0,0.72)_100%)]" />
+        {/* Final dimming layer */}
+        <div className="absolute inset-0 bg-black/[0.12]" />
 
       </div>
 
@@ -303,11 +388,11 @@ function MapView({ cameras: backendCameras = [] }) {
           </div>
 
           <div className="mt-1 font-mono text-[9px] text-cyan-300/60">
-            28.6139° N
+            28.6669° N
           </div>
 
           <div className="font-mono text-[9px] text-cyan-300/60">
-            77.2090° E
+            77.2311° E
           </div>
 
           <div className="mt-2 flex items-center gap-2">
@@ -357,8 +442,6 @@ function MapView({ cameras: backendCameras = [] }) {
               {selected && (
                 <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/30" />
               )}
-
-              {/* Camera information */}
 
               <div
                 className={`absolute bottom-[calc(100%+14px)] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-[#02070b]/95 px-3 py-2 backdrop-blur-xl transition ${
@@ -426,18 +509,33 @@ function MapView({ cameras: backendCameras = [] }) {
         preserveAspectRatio="none"
       >
 
+        <defs>
+          <filter
+            id="trajectoryGlow"
+            x="-100%"
+            y="-100%"
+            width="300%"
+            height="300%"
+          >
+            <feGaussianBlur stdDeviation="2" />
+          </filter>
+        </defs>
+
+        {/* Wide trajectory glow */}
         <path
           d="M 27 60 C 34 57, 35 50, 40 48 C 46 45, 48 42, 52 40 C 57 42, 61 46, 64 48 C 68 52, 70 57, 72 59"
           fill="none"
-          stroke="rgba(34,211,238,0.10)"
-          strokeWidth="1.1"
+          stroke="rgba(34,211,238,0.24)"
+          strokeWidth="1.6"
+          filter="url(#trajectoryGlow)"
         />
 
+        {/* Bright trajectory */}
         <path
           d="M 27 60 C 34 57, 35 50, 40 48 C 46 45, 48 42, 52 40 C 57 42, 61 46, 64 48 C 68 52, 70 57, 72 59"
           fill="none"
-          stroke="rgba(34,211,238,0.55)"
-          strokeWidth="0.3"
+          stroke="rgba(34,211,238,0.82)"
+          strokeWidth="0.34"
           strokeDasharray="2 2"
           style={{
             strokeDashoffset: simulationRunning ? tick * -3 : 0,
@@ -524,8 +622,6 @@ function MapView({ cameras: backendCameras = [] }) {
 
           </div>
 
-          {/* Selected camera */}
-
           {selectedCamera && (
             <>
 
@@ -585,8 +681,6 @@ function MapView({ cameras: backendCameras = [] }) {
 
             </>
           )}
-
-          {/* Selected vehicle */}
 
           {selectedVehicle && (
             <>

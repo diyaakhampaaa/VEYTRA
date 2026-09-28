@@ -13,7 +13,6 @@ import VehicleSearch from "./pages/VehicleSearch"
 import SmartVerification from "./pages/SmartVerification"
 import TrafficAnalytics from "./pages/TrafficAnalytics"
 import Alerts from "./pages/Alerts"
-import SimulationComparison from "./pages/SimulationComparison"
 
 function App() {
   const [isEntered, setIsEntered] = useState(false)
@@ -35,9 +34,6 @@ function App() {
 
       case "alerts":
         return <Alerts />
-
-      case "simulation":
-        return <SimulationComparison />
 
       case "command":
       default:
@@ -109,10 +105,8 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[var(--veytra-bg)] text-[var(--veytra-text)]">
-      {/* TOP SYSTEM BAR */}
       <TopBar activePage={activePage} />
 
-      {/* SIDEBAR + MAIN CONTENT */}
       <div className="flex min-h-[calc(100vh-88px)]">
         <Sidebar
           activePage={activePage}

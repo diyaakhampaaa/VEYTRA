@@ -91,33 +91,12 @@ function Sidebar({ activePage, setActivePage }) {
         </svg>
       ),
     },
-
-    {
-      id: "simulation",
-      label: "SUMO",
-      icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          width="22"
-          height="22"
-        >
-          <circle cx="12" cy="12" r="7" />
-          <path d="M12 5v14M5 12h14" />
-          <circle cx="12" cy="12" r="2" />
-        </svg>
-      ),
-    },
   ]
 
   return (
     <aside className="veytra-sidebar flex min-h-screen shrink-0 flex-col">
 
-      {/* =====================================================
-          LOGO
-          ===================================================== */}
+      {/* LOGO */}
 
       <div className="flex justify-center pt-4 pb-7">
 
@@ -141,10 +120,7 @@ function Sidebar({ activePage, setActivePage }) {
 
       </div>
 
-
-      {/* =====================================================
-          NAVIGATION
-          ===================================================== */}
+      {/* NAVIGATION */}
 
       <nav className="flex flex-1 flex-col items-center gap-3">
 
@@ -177,10 +153,7 @@ function Sidebar({ activePage, setActivePage }) {
 
       </nav>
 
-
-      {/* =====================================================
-          BOTTOM SYSTEM INDICATOR
-          ===================================================== */}
+      {/* BOTTOM SYSTEM INDICATOR */}
 
       <div className="flex flex-col items-center gap-2 pb-6">
 

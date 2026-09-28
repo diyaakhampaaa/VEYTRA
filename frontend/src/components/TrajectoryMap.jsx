@@ -27,8 +27,8 @@ const DEMO_TRAJECTORY = [
     road_name: "Kashmere Gate Road",
     speed_kmh: 42,
     location: {
-      latitude: 28.6663,
-      longitude: 77.2295,
+      latitude: 28.666949,
+      longitude: 77.229996,
     },
   },
   {
@@ -39,8 +39,8 @@ const DEMO_TRAJECTORY = [
     road_name: "Netaji Subhash Marg",
     speed_kmh: 38,
     location: {
-      latitude: 28.6562,
-      longitude: 77.2410,
+      latitude: 28.667140,
+      longitude: 77.231179,
     },
   },
   {
@@ -51,8 +51,8 @@ const DEMO_TRAJECTORY = [
     road_name: "Mahatma Gandhi Marg",
     speed_kmh: 45,
     location: {
-      latitude: 28.6139,
-      longitude: 77.2295,
+      latitude: 28.665748,
+      longitude: 77.232073,
     },
   },
 ];
@@ -125,7 +125,7 @@ function FitRoute({ points }) {
     if (points.length > 0) {
       map.fitBounds(L.latLngBounds(points), {
         padding: [45, 45],
-        maxZoom: 14,
+        maxZoom: 20,
       });
     }
   }, [map, points]);
