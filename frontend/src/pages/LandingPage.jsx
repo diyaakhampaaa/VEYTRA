@@ -1,3 +1,5 @@
+const CAM_IMAGE_COUNT = 10 // photos in public/cams
+
 function LandingPage({ onEnter, onNavigate }) {
   const cameras = [
     { id: "CAM 01", location: "JUNCTION", status: "LIVE", real: true },
@@ -53,29 +55,15 @@ function LandingPage({ onEnter, onNavigate }) {
                 }`}
               >
 
-                {/* Road */}
-                <div className="absolute left-1/2 top-[-20%] h-[150%] w-[38%] -translate-x-1/2 rotate-[3deg] bg-slate-500/[0.09]" />
-
-                {/* Road divider */}
-                <div className="absolute left-1/2 top-0 h-full -translate-x-1/2 border-l border-dashed border-white/[0.10]" />
-
-                {/* Fake vehicle */}
-                <div
-                  className="absolute h-8 w-4 rounded-sm bg-white/[0.09] blur-[1px]"
-                  style={{
-                    left: `${25 + (index * 13) % 45}%`,
-                    top: `${20 + (index * 17) % 60}%`,
-                    transform: `rotate(${index % 2 ? "-5deg" : "5deg"})`,
-                  }}
-                />
-
-                <div
-                  className="absolute h-10 w-5 rounded-sm bg-cyan-300/[0.10] blur-[1px]"
-                  style={{
-                    left: `${48 + (index * 7) % 25}%`,
-                    top: `${35 + (index * 11) % 45}%`,
-                    transform: `rotate(${index % 2 ? "4deg" : "-4deg"})`,
-                  }}
+                {/* Real camera photo */}
+                <img
+                  src={`${import.meta.env.BASE_URL}cams/cam${(index % CAM_IMAGE_COUNT) + 1}.jpg`}
+                  alt=""
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.style.display = "none" }}
+                  className={`absolute inset-0 h-full w-full object-cover grayscale-[60%] contrast-125 ${
+                    camera.real ? "opacity-80" : "opacity-45"
+                  } ${index % 2 ? "-scale-x-100" : ""}`}
                 />
 
                 {/* Scanlines */}
