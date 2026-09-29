@@ -6,10 +6,14 @@ from sqlalchemy.orm import Session
 from ai.tracking.integration import (
     match_tracked_frames,
     prepare_track_records,
+    verification_payloads,
+    apply_verification_corrections_to_trajectories,
 )
+
+from ai.verification.integration import process_verification_payloads
+
 from backend.database import SessionLocal
 from backend.services.trajectory_persistence import persist_trajectories
-
 
 router = APIRouter(prefix="/tracking", tags=["Tracking"])
 
@@ -27,19 +31,22 @@ def match_tracks(
     tracked_frames: list[dict[str, Any]],
     db: Session = Depends(get_db),
 ):
-    """
-    Match completed local tracks across cameras,
-    reconstruct trajectories, and persist them to the database.
-
-    Input:
-        A list of Member 3 enriched frame results.
-
-    Output:
-        Global vehicle identities, trajectories,
-        match scores, and verification candidates.
-    """
     try:
         result = match_tracked_frames(tracked_frames)
+
+        verification_candidates = verification_payloads(result)
+
+        verification_results = process_verification_payloads(
+            verification_candidates
+        )
+
+        result["verification_candidates"] = verification_candidates
+        result["verification_results"] = verification_results
+
+        result["trajectories"] = apply_verification_corrections_to_trajectories(
+            result.get("trajectories", []),
+            verification_results,
+        )
 
         persisted_events = persist_trajectories(
             db,

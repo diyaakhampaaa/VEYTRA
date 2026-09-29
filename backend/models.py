@@ -50,6 +50,7 @@ class VehicleCameraEvent(Base):
     road_name = Column(String, nullable=True)
     speed_kmh = Column(Float, nullable=True)
     trajectory_id = Column(String, nullable=True)
+    frame_path = Column(String, nullable=True)
 
 class DetectionEvent(Base):
     __tablename__ = "detection_events"

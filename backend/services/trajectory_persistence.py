@@ -204,51 +204,76 @@ def persist_trajectories(
         }
 
         for observation in observations:
-            event_id = observation.get(
-                "event_id"
-            )
+            event_id = observation.get("event_id")
 
             if not event_id:
                 continue
 
-            if event_id in existing_event_ids:
+            existing_event = (
+                db.query(VehicleCameraEvent)
+                .filter(
+                    VehicleCameraEvent.event_id == event_id
+                )
+                .first()
+            )
+
+            if existing_event is not None:
+                # Update existing event if verification corrected
+                # its vehicle or trajectory identity.
+                existing_event.vehicle_id = vehicle_id
+                existing_event.camera_id = observation.get(
+                    "camera_id"
+                )
+                existing_event.timestamp = str(
+                    observation.get(
+                        "timestamp",
+                        "",
+                    )
+                )
+                existing_event.direction = observation.get(
+                    "direction"
+                )
+                existing_event.latitude = observation.get(
+                    "latitude"
+                )
+                existing_event.longitude = observation.get(
+                    "longitude"
+                )
+                existing_event.road_segment_id = observation.get(
+                    "road_segment_id"
+                )
+                existing_event.road_name = observation.get(
+                    "road_name"
+                )
+                existing_event.speed_kmh = observation.get(
+                    "speed_kmh"
+                )
+                existing_event.trajectory_id = trajectory_id
+
                 continue
 
             event = VehicleCameraEvent(
                 event_id=event_id,
                 vehicle_id=vehicle_id,
-                camera_id=observation.get(
-                    "camera_id"
-                ),
+                camera_id=observation.get("camera_id"),
                 timestamp=str(
                     observation.get(
                         "timestamp",
                         "",
                     )
                 ),
-                direction=observation.get(
-                    "direction"
-                ),
-                latitude=observation.get(
-                    "latitude"
-                ),
-                longitude=observation.get(
-                    "longitude"
-                ),
+                direction=observation.get("direction"),
+                latitude=observation.get("latitude"),
+                longitude=observation.get("longitude"),
                 road_segment_id=observation.get(
                     "road_segment_id"
                 ),
-                road_name=observation.get(
-                    "road_name"
-                ),
-                speed_kmh=observation.get(
-                    "speed_kmh"
-                ),
+                road_name=observation.get("road_name"),
+                speed_kmh=observation.get("speed_kmh"),
                 trajectory_id=trajectory_id,
             )
 
             db.add(event)
-            existing_event_ids.add(event_id)
             persisted_events += 1
 
     db.commit()

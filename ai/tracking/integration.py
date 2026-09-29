@@ -281,6 +281,200 @@ def track_and_enrich_frame(
     tracked = tracker_obj.update(detection_result)
     return embed_tracked_frame(frame, tracked, embedder=embedder)
 
+def apply_verification_corrections_to_trajectories(
+    trajectories: list[dict[str, Any]],
+    verification_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Merge trajectories when verification proves that two camera-local
+    identities belong to the same vehicle.
+
+    Example:
+        V001 -> DL01AB1234 from CAM_01
+        V002 -> DL01AB1284 from CAM_02
+
+    Verification:
+        DL01AB1284 -> DL01AB1234
+
+    Result:
+        V001 -> DL01AB1234
+        CAM_01 -> CAM_02
+    """
+
+    if not trajectories or not verification_results:
+        return trajectories
+
+    for correction in verification_results:
+
+        if correction.get("verification_status") != "corrected":
+            continue
+
+        original_plate = correction.get("original_plate")
+        corrected_plate = correction.get("corrected_plate")
+        corrected_event_id = correction.get("event_id")
+
+        if not original_plate or not corrected_plate:
+            continue
+
+        if original_plate == corrected_plate:
+            continue
+
+        # Find the trajectory containing the suspicious/corrected event.
+        source_trajectory = None
+
+        for trajectory in trajectories:
+            event_ids = trajectory.get("event_ids", [])
+
+            if corrected_event_id in event_ids:
+                source_trajectory = trajectory
+                break
+
+            for observation in trajectory.get("event_observations", []):
+                if observation.get("event_id") == corrected_event_id:
+                    source_trajectory = trajectory
+                    break
+
+            if source_trajectory:
+                break
+
+        if source_trajectory is None:
+            continue
+
+        # Find the existing trajectory that already has the corrected plate.
+        target_trajectory = None
+
+        for trajectory in trajectories:
+            if trajectory is source_trajectory:
+                continue
+
+            if trajectory.get("plate") == corrected_plate:
+                target_trajectory = trajectory
+                break
+
+        if target_trajectory is None:
+            continue
+
+        source_vehicle_id = source_trajectory.get("vehicle_id")
+        target_vehicle_id = target_trajectory.get("vehicle_id")
+        target_trajectory_id = target_trajectory.get("trajectory_id")
+
+                # Move all source observations into the target trajectory.
+        source_observations = source_trajectory.get("observations", [])
+        target_observations = target_trajectory.get("observations", [])
+
+        merged_observations = (
+            target_observations + source_observations
+        )
+
+        # Correct the identity of observations moved during verification.
+        for observation in merged_observations:
+            observation["vehicle_id"] = target_vehicle_id
+            observation["trajectory_id"] = target_trajectory_id
+            observation["status"] = "verified"
+
+        target_trajectory["observations"] = merged_observations
+
+        # Sort observations chronologically.
+        target_trajectory["observations"].sort(
+            key=lambda item: item.get("first_timestamp", "")
+        )
+
+        # Merge event IDs.
+        target_event_ids = target_trajectory.get("event_ids", [])
+        source_event_ids = source_trajectory.get("event_ids", [])
+
+        target_trajectory["event_ids"] = list(
+            dict.fromkeys(
+                target_event_ids + source_event_ids
+            )
+        )
+
+        # Merge event observations.
+        target_event_observations = target_trajectory.get(
+            "event_observations", []
+        )
+
+        source_event_observations = source_trajectory.get(
+            "event_observations", []
+        )
+
+        merged_event_observations = (
+            target_event_observations
+            + source_event_observations
+        )
+
+        # Correct the identity of every moved event.
+        for event in merged_event_observations:
+            event["vehicle_id"] = target_vehicle_id
+            event["trajectory_id"] = target_trajectory_id
+
+        merged_event_observations.sort(
+            key=lambda item: item.get("timestamp", "")
+        )
+
+        target_trajectory["event_observations"] = (
+            merged_event_observations
+        )
+
+        # Update the trajectory metadata.
+        target_trajectory["plate"] = corrected_plate
+
+        timestamps = [
+            event.get("timestamp")
+            for event in merged_event_observations
+            if event.get("timestamp")
+        ]
+
+        if timestamps:
+            timestamps.sort()
+            target_trajectory["start_time"] = timestamps[0]
+            target_trajectory["end_time"] = timestamps[-1]
+            target_trajectory["first_timestamp"] = timestamps[0]
+            target_trajectory["last_timestamp"] = timestamps[-1]
+
+        target_trajectory["observation_count"] = len(
+            target_trajectory["observations"]
+        )
+
+                # Merge camera sequence without duplicates.
+        camera_sequence = []
+
+        for event in merged_event_observations:
+            camera_id = event.get("camera_id")
+
+            if camera_id is not None and camera_id not in camera_sequence:
+                camera_sequence.append(camera_id)
+
+        target_trajectory["camera_sequence"] = camera_sequence
+        # Merge road and direction information.
+        target_trajectory["road_sequence"] = list(
+            dict.fromkeys(
+                target_trajectory.get("road_sequence", [])
+                + source_trajectory.get("road_sequence", [])
+            )
+        )
+
+        target_trajectory["direction_sequence"] = list(
+            dict.fromkeys(
+                target_trajectory.get("direction_sequence", [])
+                + source_trajectory.get("direction_sequence", [])
+            )
+        )
+
+        # Keep the target/global vehicle identity.
+        target_trajectory["vehicle_id"] = target_vehicle_id
+        target_trajectory["trajectory_id"] = target_trajectory_id
+
+        # Remove the duplicate trajectory.
+        trajectories.remove(source_trajectory)
+
+        print(
+            f"[VERIFICATION] Merged {source_vehicle_id} "
+            f"into {target_vehicle_id}: "
+            f"{original_plate} -> {corrected_plate}"
+        )
+
+    return trajectories
 
 def match_tracked_frames(
     tracked_frames: Iterable[dict[str, Any]],
@@ -350,23 +544,43 @@ def verification_payloads(match_result: dict[str, Any]) -> list[dict[str, Any]]:
     observation is presented as the suspicious event and the other observation
     is included as supporting evidence. The original OCR values are preserved.
     """
-    candidates = match_result.get("verification_candidates", [])
-    if not isinstance(candidates, list):
+    payloads: list[dict[str, Any]] = []
+
+    matches = match_result.get("matches", [])
+    if not isinstance(matches, list):
         return []
 
-    payloads: list[dict[str, Any]] = []
-    for candidate in candidates:
+    for match in matches:
+        if not isinstance(match, dict):
+            continue
+
+        candidate = match.get("verification_candidate")
         if not isinstance(candidate, dict):
             continue
+
         event = candidate.get("event")
         supporting = candidate.get("supporting_event")
+
         if not isinstance(event, dict) or not isinstance(supporting, dict):
             continue
-        if float(supporting.get("ocr_confidence", 0.0)) < float(event.get("ocr_confidence", 0.0)):
+
+        # Lower-confidence OCR reading becomes the suspicious event.
+        if float(supporting.get("ocr_confidence", 0.0)) < float(
+            event.get("ocr_confidence", 0.0)
+        ):
             event, supporting = supporting, event
+
         suspicious = dict(event)
+
+        # Preserve supporting evidence.
         suspicious["nearby_events"] = [dict(supporting)]
-        suspicious["match_score"] = dict(candidate.get("match_score", {}))
+
+        # Preserve matcher evidence for the verification layer.
+        suspicious["match_score"] = dict(
+            candidate.get("match_score", match.get("match_score", {}))
+        )
         suspicious["verification_reason"] = candidate.get("reason")
+
         payloads.append(suspicious)
+
     return payloads

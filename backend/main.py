@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers.detection import router as detection_router
@@ -19,6 +21,16 @@ app = FastAPI(
 )
 
 
+# ============================================================
+# SAMPLE CAMERA FRAMES
+# ============================================================
+
+# Serve actual camera evidence frames
+app.mount(
+    "/sample_frames",
+    StaticFiles(directory="data/sample_frames"),
+    name="sample_frames",
+)
 # ============================================================
 # CORS
 # ============================================================

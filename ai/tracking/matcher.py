@@ -663,6 +663,7 @@ class CrossCameraMatcher:
             return {
                 "event_id": event_id,
                 "camera_id": camera_id,
+                "vehicle_id": track.get("vehicle_id"),
                 "plate": plate,
                 "ocr_confidence": confidence,
                 "timestamp": timestamp,

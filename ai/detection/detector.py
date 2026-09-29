@@ -46,9 +46,8 @@ VEHICLE_WEIGHTS_PATH = os.environ.get(
 
 PLATE_WEIGHTS_PATH = os.environ.get(
     "PLATE_WEIGHTS_PATH",
-    "ai/detection/weights/plate_yolo_ft.pt",
+    "ai/detection/weights/plate_yolo.pt",
 )
-
 _vehicle_model = None
 _plate_model = None
 
