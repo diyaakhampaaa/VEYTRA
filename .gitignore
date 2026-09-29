@@ -29,3 +29,4 @@ frontend/dist/
 
 # Generated M5 analytics/GIS outputs
 analytics/output/
+data/tracking_videos/
