@@ -41,7 +41,7 @@ const SAMPLES = [
 ];
 
 const CYCLE_MS = 4000;
-const BASE_PATH = "http://127.0.0.1:8000/sample_frames/";
+const BASE_PATH = "/data/sample_frames/";
 
 export default function LiveDetectionShowcase() {
   const [index, setIndex] = useState(0);
