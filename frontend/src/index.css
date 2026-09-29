@@ -486,50 +486,66 @@ textarea {
   }
 }
 
+
 /* =========================================================
    TOP BAR
    ========================================================= */
 
 .veytra-topbar {
   width: 100%;
+
   background:
     linear-gradient(
       180deg,
       #07131f 0%,
       #06111b 100%
     );
+
   border-bottom: 1px solid rgba(91, 128, 157, 0.18);
+
   position: relative;
   z-index: 50;
 }
 
 .veytra-topbar-inner {
   min-height: 88px;
+
   display: flex;
   align-items: center;
+
   padding: 0 32px;
 }
+
 
 /* ---------- TOP BAR BRAND ---------- */
 
 .veytra-topbar-brand {
   display: flex;
   align-items: center;
+
   gap: 14px;
+
   min-width: 300px;
 }
 
 .veytra-topbar-logo {
   width: 46px;
   height: 46px;
+
   flex-shrink: 0;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   border-radius: 13px;
+
   border: 1px solid rgba(66, 232, 223, 0.42);
+
   background: rgba(66, 232, 223, 0.025);
+
   color: var(--veytra-cyan);
+
   box-shadow:
     0 0 18px rgba(66, 232, 223, 0.035);
 }
@@ -537,65 +553,92 @@ textarea {
 .veytra-topbar-eyebrow {
   font-size: 10px;
   line-height: 1;
+
   font-weight: 600;
+
   letter-spacing: 0.22em;
+
   text-transform: uppercase;
+
   color: var(--veytra-muted);
 }
 
 .veytra-topbar-title {
   margin-top: 7px;
+
   font-size: 21px;
   line-height: 1;
+
   font-weight: 700;
+
   letter-spacing: 0.04em;
+
   color: var(--veytra-heading);
 }
+
 
 /* ---------- ACTIVE CITY ---------- */
 
 .veytra-topbar-city {
   flex: 1;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   gap: 11px;
 }
 
 .veytra-topbar-city-label {
   font-size: 10px;
+
   font-weight: 600;
+
   letter-spacing: 0.18em;
+
   text-transform: uppercase;
+
   color: var(--veytra-dim);
 }
 
 .veytra-topbar-city-name {
   font-size: 14px;
+
   font-weight: 700;
+
   color: var(--veytra-cyan);
 }
+
 
 /* ---------- OPERATOR ---------- */
 
 .veytra-topbar-operator {
   min-width: 250px;
+
   display: flex;
   align-items: center;
   justify-content: flex-end;
+
   gap: 12px;
 }
 
 .veytra-topbar-operator-button {
   display: flex;
   align-items: center;
+
   gap: 11px;
+
   padding: 6px 8px 6px 12px;
+
   border: 1px solid transparent;
   border-radius: 12px;
+
   background: transparent;
+
   color: var(--veytra-text);
+
   cursor: pointer;
+
   transition:
     background 180ms ease,
     border-color 180ms ease;
@@ -603,6 +646,7 @@ textarea {
 
 .veytra-topbar-operator-button:hover {
   background: rgba(66, 232, 223, 0.035);
+
   border-color: rgba(66, 232, 223, 0.12);
 }
 
@@ -610,51 +654,74 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+
   gap: 3px;
 }
 
 .veytra-topbar-operator-label {
   font-size: 10px;
+
   font-weight: 600;
+
   letter-spacing: 0.12em;
+
   text-transform: uppercase;
+
   color: var(--veytra-muted);
 }
 
 .veytra-topbar-operator-status {
   display: flex;
   align-items: center;
+
   gap: 5px;
+
   font-size: 8px;
+
   font-weight: 600;
+
   letter-spacing: 0.12em;
+
   text-transform: uppercase;
+
   color: var(--veytra-success);
 }
 
 .veytra-topbar-operator-avatar {
   width: 40px;
   height: 40px;
+
   flex-shrink: 0;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   border-radius: 50%;
+
   border: 1px solid rgba(66, 232, 223, 0.25);
+
   background: var(--veytra-panel);
+
   color: var(--veytra-text);
+
   font-size: 11px;
+
   font-weight: 700;
+
   letter-spacing: 0.04em;
 }
+
 
 /* ---------- TOP BAR SEPARATOR ---------- */
 
 .veytra-topbar-divider {
   width: 1px;
   height: 30px;
+
   background: var(--veytra-border);
 }
+
 
 /* ---------- RESPONSIVE ---------- */
 
@@ -678,4 +745,112 @@ textarea {
   .veytra-topbar-operator-info {
     display: none;
   }
+}
+
+
+/* =========================================================
+   LEAFLET MAP
+   Keep Leaflet controls above custom GIS overlays.
+   ========================================================= */
+
+/* Leaflet's own control layers */
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 2000 !important;
+}
+
+/* Zoom control itself */
+.leaflet-control-zoom {
+  z-index: 2100 !important;
+
+  margin-right: 12px !important;
+  margin-bottom: 12px !important;
+
+  border: 1px solid rgba(66, 232, 223, 0.25) !important;
+  border-radius: 8px !important;
+
+  overflow: hidden;
+
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Zoom + and - buttons */
+.leaflet-control-zoom a {
+  width: 34px !important;
+  height: 34px !important;
+
+  line-height: 34px !important;
+
+  font-size: 20px !important;
+  font-weight: 500 !important;
+
+  color: #d9e5f0 !important;
+
+  background: #07121d !important;
+
+  border-bottom: 1px solid rgba(113, 151, 181, 0.18) !important;
+}
+
+/* Remove bottom border from final button */
+.leaflet-control-zoom a:last-child {
+  border-bottom: none !important;
+}
+
+/* Hover */
+.leaflet-control-zoom a:hover {
+  color: #42e8df !important;
+  background: #0d1c2b !important;
+}
+
+/* Focus */
+.leaflet-control-zoom a:focus {
+  outline: none !important;
+  color: #42e8df !important;
+  background: #0d1c2b !important;
+}
+
+
+/* =========================================================
+   LEAFLET POPUPS
+   ========================================================= */
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #07121d !important;
+  color: #d9e5f0 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border: 1px solid rgba(66, 232, 223, 0.18);
+  border-radius: 10px;
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+}
+
+.leaflet-popup-close-button {
+  color: #8fa6bb !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #42e8df !important;
+}
+
+
+/* =========================================================
+   LEAFLET ATTRIBUTION
+   ========================================================= */
+
+.leaflet-control-attribution {
+  background: rgba(5, 13, 22, 0.82) !important;
+
+  color: #71859a !important;
+
+  font-size: 9px !important;
+}
+
+.leaflet-control-attribution a {
+  color: #8fa6bb !important;
 }
